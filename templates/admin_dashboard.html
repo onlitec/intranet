@@ -1,0 +1,292 @@
+{% extends "base.html" %}
+
+{% block title %}Painel Administrativo{% endblock %}
+
+{% block content %}
+<div class="admin-header">
+    <div class="admin-header-content">
+        <h1>🔒 Painel Administrativo</h1>
+        <p>Bem-vindo, <strong>{{ admin.full_name }}</strong></p>
+    </div>
+    <div class="admin-header-actions">
+        <a href="{{ url_for('admin.logout') }}" class="btn btn-danger">🚪 Sair</a>
+    </div>
+</div>
+
+<div class="admin-nav">
+    <a href="{{ url_for('admin.dashboard') }}" class="admin-nav-item active">Dashboard</a>
+    <a href="{{ url_for('admin.users_list') }}" class="admin-nav-item">Usuários</a>
+    <a href="{{ url_for('admin.logs') }}" class="admin-nav-item">Logs</a>
+</div>
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-icon">👥</div>
+        <div class="stat-info">
+            <span class="stat-value">{{ stats.total_users }}</span>
+            <span class="stat-label">Usuários Cadastrados</span>
+        </div>
+    </div>
+
+    <div class="stat-card">
+        <div class="stat-icon">✅</div>
+        <div class="stat-info">
+            <span class="stat-value">{{ stats.active_users }}</span>
+            <span class="stat-label">Usuários Ativos</span>
+        </div>
+    </div>
+
+    <div class="stat-card">
+        <div class="stat-icon">🔑</div>
+        <div class="stat-info">
+            <span class="stat-value">{{ stats.logins_today }}</span>
+            <span class="stat-label">Logins Hoje</span>
+        </div>
+    </div>
+
+    <div class="stat-card">
+        <div class="stat-icon">📊</div>
+        <div class="stat-info">
+            <span class="stat-value">{{ stats.logins_week }}</span>
+            <span class="stat-label">Logins (7 dias)</span>
+        </div>
+    </div>
+</div>
+
+<div class="dashboard-grid">
+    <div class="dashboard-card">
+        <h3>Status do TrueNAS</h3>
+        <div class="status-indicator {% if truenas_online %}status-online{% else %}status-offline{% endif %}">
+            <span class="status-dot"></span>
+            <span>{{ 'Online' if truenas_online else 'Offline' }}</span>
+        </div>
+        <p class="text-muted">IP: {{ truenas_ip }}</p>
+    </div>
+
+    <div class="dashboard-card">
+        <h3>Ações Rápidas</h3>
+        <div class="quick-actions">
+            <a href="{{ url_for('admin.users_new') }}" class="btn btn-primary">
+                ➕ Cadastrar Usuário
+            </a>
+            <a href="{{ url_for('admin.users_list') }}" class="btn btn-secondary">
+                👥 Ver Usuários
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="dashboard-card" style="margin-top: 1.5rem;">
+    <h3>Últimos Acessos</h3>
+    {% if recent_logs %}
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Data/Hora</th>
+                <th>Usuário</th>
+                <th>Ação</th>
+                <th>IP</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for log in recent_logs %}
+            <tr>
+                <td>{{ log.timestamp.strftime('%d/%m/%Y %H:%M') }}</td>
+                <td>{{ log.username }}</td>
+                <td>{{ log.action }}</td>
+                <td>{{ log.ip_address or '-' }}</td>
+                <td>
+                    {% if log.success %}
+                    <span class="badge badge-success">✓</span>
+                    {% else %}
+                    <span class="badge badge-error">✗</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <a href="{{ url_for('admin.logs') }}" class="btn btn-outline" style="margin-top: 1rem;">Ver Todos os Logs</a>
+    {% else %}
+    <p class="text-muted">Nenhum log registrado ainda.</p>
+    {% endif %}
+</div>
+
+<style>
+    .admin-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .admin-header h1 {
+        margin: 0;
+        font-size: 1.75rem;
+    }
+
+    .admin-header p {
+        margin: 0.25rem 0 0;
+        color: var(--text-muted);
+    }
+
+    .admin-nav {
+        display: flex;
+        gap: 0.5rem;
+        margin-bottom: 1.5rem;
+        padding: 0.5rem;
+        background: var(--bg-secondary);
+        border-radius: var(--border-radius);
+    }
+
+    .admin-nav-item {
+        padding: 0.5rem 1rem;
+        border-radius: 6px;
+        color: var(--text-secondary);
+        text-decoration: none;
+        font-weight: 500;
+        transition: all 0.2s;
+    }
+
+    .admin-nav-item:hover {
+        background: var(--bg-tertiary);
+        color: var(--text-primary);
+    }
+
+    .admin-nav-item.active {
+        background: var(--primary);
+        color: white;
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .stat-card {
+        background: white;
+        border-radius: var(--border-radius);
+        padding: 1.25rem;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        box-shadow: var(--shadow-sm);
+    }
+
+    .stat-icon {
+        font-size: 2rem;
+        background: var(--bg-secondary);
+        padding: 0.75rem;
+        border-radius: 12px;
+    }
+
+    .stat-value {
+        display: block;
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .stat-label {
+        display: block;
+        font-size: 0.875rem;
+        color: var(--text-muted);
+    }
+
+    .dashboard-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 1.5rem;
+    }
+
+    .dashboard-card {
+        background: white;
+        border-radius: var(--border-radius);
+        padding: 1.5rem;
+        box-shadow: var(--shadow-sm);
+    }
+
+    .dashboard-card h3 {
+        margin: 0 0 1rem;
+        font-size: 1.1rem;
+        color: var(--text-primary);
+    }
+
+    .status-indicator {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-weight: 600;
+        font-size: 1.1rem;
+    }
+
+    .status-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+    }
+
+    .status-online .status-dot {
+        background: #22c55e;
+        box-shadow: 0 0 8px rgba(34, 197, 94, 0.5);
+    }
+
+    .status-offline .status-dot {
+        background: #ef4444;
+    }
+
+    .quick-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .data-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .data-table th,
+    .data-table td {
+        padding: 0.75rem;
+        text-align: left;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .data-table th {
+        background: var(--bg-secondary);
+        font-weight: 600;
+        font-size: 0.875rem;
+    }
+
+    .data-table tbody tr:hover {
+        background: var(--bg-secondary);
+    }
+
+    .badge {
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .badge-success {
+        background: #dcfce7;
+        color: #166534;
+    }
+
+    .badge-error {
+        background: #fee2e2;
+        color: #991b1b;
+    }
+
+    .text-muted {
+        color: var(--text-muted);
+    }
+</style>
+{% endblock %}

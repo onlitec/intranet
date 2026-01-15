@@ -1,0 +1,16 @@
+[Unit]
+Description=Intranet TrueNAS Platform
+After=network.target
+
+[Service]
+Type=exec
+User=alfreire
+Group=alfreire
+WorkingDirectory=/home/alfreire/app/intranet
+ExecStart=/home/alfreire/app/intranet/run.sh
+Restart=always
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

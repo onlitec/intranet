@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}Login - Usuário TrueNAS{% endblock %}
+
+{% block content %}
+<div class="login-wrapper">
+    <div class="login-container">
+        <div class="login-header">
+            <div class="user-badge">👤 USUÁRIO</div>
+            <h2 class="login-title">Acesso TrueNAS</h2>
+            <p class="login-subtitle">Entre com suas credenciais do TrueNAS</p>
+        </div>
+
+        <form method="POST" action="{{ url_for('user_login') }}" class="login-form" id="loginForm">
+            <div class="form-group">
+                <label for="username" class="form-label">Usuário</label>
+                <input type="text" id="username" name="username" class="form-control" placeholder="Digite seu usuário"
+                    required autofocus autocomplete="username">
+            </div>
+
+            <div class="form-group">
+                <label for="password" class="form-label">Senha</label>
+                <input type="password" id="password" name="password" class="form-control" placeholder="Digite sua senha"
+                    required autocomplete="current-password">
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-block" id="loginBtn">
+                <span class="btn-text">Entrar</span>
+                <span class="btn-loader" style="display: none;">
+                    <span class="spinner"></span> Validando...
+                </span>
+            </button>
+        </form>
+
+        <div class="login-footer">
+            <p class="help-text">
+                <svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                    <path
+                        d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0zM7 6.5a1 1 0 1 0 2 0 1 1 0 0 0-2 0zm1 2a.5.5 0 0 0-.5.5v3a.5.5 0 0 0 1 0V9a.5.5 0 0 0-.5-.5z" />
+                </svg>
+                Use suas credenciais fornecidas pelo administrador
+            </p>
+            <p style="margin-top: 1rem;">
+                <a href="{{ url_for('home') }}" style="color: var(--text-muted); font-size: 0.875rem;">
+                    ← Voltar para seleção
+                </a>
+            </p>
+        </div>
+    </div>
+</div>
+
+<style>
+    .user-badge {
+        background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+        color: white;
+        padding: 0.25rem 0.75rem;
+        border-radius: 999px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        display: inline-block;
+        margin-bottom: 0.5rem;
+    }
+</style>
+
+<script>
+    document.getElementById('loginForm').addEventListener('submit', function (e) {
+        const btn = document.getElementById('loginBtn');
+        const btnText = btn.querySelector('.btn-text');
+        const btnLoader = btn.querySelector('.btn-loader');
+
+        btn.disabled = true;
+        btnText.style.display = 'none';
+        btnLoader.style.display = 'inline-flex';
+    });
+</script>
+{% endblock %}

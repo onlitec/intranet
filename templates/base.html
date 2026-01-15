@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Intranet Corporativa - Sistema de Gerenciamento de Compartilhamentos">
+    <meta name="author" content="Intranet TrueNAS">
+    <title>{% block title %}Intranet{% endblock %} - TrueNAS</title>
+
+    <!-- CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/logo.png') }}">
+
+    {% block extra_head %}{% endblock %}
+</head>
+
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">
+                    <img src="{{ url_for('static', filename='images/logo.png') }}" alt="Logo" class="logo-img"
+                        onerror="this.style.display='none'">
+                    <h1 class="logo-text">Intranet</h1>
+                </div>
+
+                {% if current_user.is_authenticated %}
+                <nav class="nav">
+                    <a href="{{ url_for('dashboard') }}" class="nav-link">Dashboard</a>
+                    {% if session.get('is_admin') %}
+                    <a href="{{ url_for('admin.dashboard') }}" class="nav-link">Admin</a>
+                    {% endif %}
+                    <div class="user-menu">
+                        <span class="user-name">{{ current_user.full_name }}</span>
+                        <form action="{{ url_for('do_logout') }}" method="POST" style="display: inline;">
+                            <button type="submit" class="btn btn-secondary btn-sm">Sair</button>
+                        </form>
+                    </div>
+                </nav>
+                {% endif %}
+            </div>
+        </div>
+    </header>
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    <div class="flash-container">
+        <div class="container">
+            {% for category, message in messages %}
+            <div class="alert alert-{{ category }}">
+                <span class="alert-icon">
+                    {% if category == 'success' %}✓{% elif category == 'error' %}✕{% elif category == 'warning' %}⚠{%
+                    else %}ℹ{% endif %}
+                </span>
+                <span class="alert-message">{{ message }}</span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+    {% endwith %}
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="container">
+            {% block content %}{% endblock %}
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2026 Intranet TrueNAS. Todos os direitos reservados.</p>
+            <p class="footer-status">
+                <span id="status-indicator" class="status-dot"></span>
+                <span id="status-text">Verificando conexão...</span>
+            </p>
+        </div>
+    </footer>
+
+    <!-- JavaScript -->
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    {% block extra_scripts %}{% endblock %}
+
+    <!-- Check API Status -->
+    <script>
+        // Verificar status da conexão ao carregar
+        fetch('/api/status')
+            .then(response => response.json())
+            .then(data => {
+                const indicator = document.getElementById('status-indicator');
+                const text = document.getElementById('status-text');
+                if (data.truenas_connection) {
+                    indicator.className = 'status-dot status-online';
+                    text.textContent = 'TrueNAS Online';
+                } else {
+                    indicator.className = 'status-dot status-offline';
+                    text.textContent = 'TrueNAS Offline';
+                }
+            })
+            .catch(error => {
+                const indicator = document.getElementById('status-indicator');
+                const text = document.getElementById('status-text');
+                indicator.className = 'status-dot status-offline';
+                text.textContent = 'Erro de Conexão';
+            });
+    </script>
+</body>
+
+</html>

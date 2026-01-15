@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+
+{% block title %}Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <h2 class="page-title">Painel Administrativo</h2>
+
+    <!-- Status do TrueNAS -->
+    <div class="admin-section">
+        <h3 class="section-title">Status da Conexão</h3>
+        <div class="status-card">
+            <div class="status-info">
+                <div class="status-row">
+                    <span class="status-label">TrueNAS:</span>
+                    <span class="status-value">
+                        {% if truenas_status %}
+                        <span class="badge badge-success">
+                            <span class="status-dot status-online"></span>
+                            Online
+                        </span>
+                        {% else %}
+                        <span class="badge badge-danger">
+                            <span class="status-dot status-offline"></span>
+                            Offline
+                        </span>
+                        {% endif %}
+                    </span>
+                </div>
+                <div class="status-row">
+                    <span class="status-label">Endereço IP:</span>
+                    <span class="status-value">{{ truenas_ip }}</span>
+                </div>
+                <div class="status-row">
+                    <span class="status-label">API URL:</span>
+                    <span class="status-value"><code>http://{{ truenas_ip }}/api/v2.0</code></span>
+                </div>
+            </div>
+
+            <div class="admin-actions">
+                <button onclick="testConnection()" class="btn btn-secondary">
+                    <svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                        <path
+                            d="M11.534 7h3.932a.25.25 0 0 1 .192.41l-1.966 2.36a.25.25 0 0 1-.384 0l-1.966-2.36a.25.25 0 0 1 .192-.41zm-11 2h3.932a.25.25 0 0 0 .192-.41L2.692 6.23a.25.25 0 0 0-.384 0L.342 8.59A.25.25 0 0 0 .534 9z" />
+                        <path fill-rule="evenodd"
+                            d="M8 3c-1.552 0-2.94.707-3.857 1.818a.5.5 0 1 1-.771-.636A6.002 6.002 0 0 1 13.917 7H12.9A5.002 5.002 0 0 0 8 3zM3.1 9a5.002 5.002 0 0 0 8.757 2.182.5.5 0 1 1 .771.636A6.002 6.002 0 0 1 2.083 9H3.1z" />
+                    </svg>
+                    Testar Conexão
+                </button>
+                <div id="connectionTest" class="test-result"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Logs Recentes -->
+    <div class="admin-section">
+        <div class="section-header">
+            <h3 class="section-title">Logs Recentes</h3>
+            <a href="{{ url_for('download_logs') }}" class="btn btn-sm btn-secondary">
+                <svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                    <path
+                        d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z" />
+                    <path
+                        d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z" />
+                </svg>
+                Baixar Logs
+            </a>
+        </div>
+
+        <div class="logs-container">
+            {% if logs %}
+            <pre class="logs-content">{% for log in logs %}{{ log }}{% endfor %}</pre>
+            {% else %}
+            <p class="text-muted">Nenhum log disponível</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+    function testConnection() {
+        const resultDiv = document.getElementById('connectionTest');
+        resultDiv.innerHTML = '<span class="spinner"></span> Testando...';
+        resultDiv.className = 'test-result test-loading';
+
+        fetch('/api/status')
+            .then(response => response.json())
+            .then(data => {
+                if (data.truenas_connection) {
+                    resultDiv.innerHTML = '✓ Conexão estabelecida com sucesso!';
+                    resultDiv.className = 'test-result test-success';
+                } else {
+                    resultDiv.innerHTML = '✕ Falha na conexão com TrueNAS';
+                    resultDiv.className = 'test-result test-error';
+                }
+
+                setTimeout(() => {
+                    resultDiv.innerHTML = '';
+                    resultDiv.className = 'test-result';
+                }, 5000);
+            })
+            .catch(error => {
+                resultDiv.innerHTML = '✕ Erro ao testar conexão';
+                resultDiv.className = 'test-result test-error';
+
+                setTimeout(() => {
+                    resultDiv.innerHTML = '';
+                    resultDiv.className = 'test-result';
+                }, 5000);
+            });
+    }
+</script>
+{% endblock %}
