@@ -1,292 +1,262 @@
 {% extends "base.html" %}
 
-{% block title %}Painel Administrativo{% endblock %}
+{% block title %}Dashboard{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+{% block page_subtitle %}<p class="topbar-subtitle">Bem-vindo, {{ admin.full_name }}</p>{% endblock %}
 
 {% block content %}
-<div class="admin-header">
-    <div class="admin-header-content">
-        <h1>🔒 Painel Administrativo</h1>
-        <p>Bem-vindo, <strong>{{ admin.full_name }}</strong></p>
-    </div>
-    <div class="admin-header-actions">
-        <a href="{{ url_for('admin.logout') }}" class="btn btn-danger">🚪 Sair</a>
-    </div>
-</div>
-
-<div class="admin-nav">
-    <a href="{{ url_for('admin.dashboard') }}" class="admin-nav-item active">Dashboard</a>
-    <a href="{{ url_for('admin.users_list') }}" class="admin-nav-item">Usuários</a>
-    <a href="{{ url_for('admin.logs') }}" class="admin-nav-item">Logs</a>
-</div>
-
+<!-- ES-SERVIDOR Stats Cards -->
 <div class="stats-grid">
     <div class="stat-card">
-        <div class="stat-icon">👥</div>
+        <div class="stat-icon primary">👥</div>
         <div class="stat-info">
-            <span class="stat-value">{{ stats.total_users }}</span>
-            <span class="stat-label">Usuários Cadastrados</span>
+            <div class="stat-value">{{ server_stats.total_users }}</div>
+            <div class="stat-label">Usuários ES-SERVIDOR</div>
         </div>
     </div>
 
     <div class="stat-card">
-        <div class="stat-icon">✅</div>
+        <div class="stat-icon success">💼</div>
         <div class="stat-info">
-            <span class="stat-value">{{ stats.active_users }}</span>
-            <span class="stat-label">Usuários Ativos</span>
+            <div class="stat-value">{{ server_stats.smb_users }}</div>
+            <div class="stat-label">Usuários SMB</div>
         </div>
     </div>
 
     <div class="stat-card">
-        <div class="stat-icon">🔑</div>
+        <div class="stat-icon warning">📁</div>
         <div class="stat-info">
-            <span class="stat-value">{{ stats.logins_today }}</span>
-            <span class="stat-label">Logins Hoje</span>
+            <div class="stat-value">{{ server_stats.shares }}</div>
+            <div class="stat-label">Compartilhamentos</div>
         </div>
     </div>
 
     <div class="stat-card">
-        <div class="stat-icon">📊</div>
+        <div class="stat-icon error">🔑</div>
         <div class="stat-info">
-            <span class="stat-value">{{ stats.logins_week }}</span>
-            <span class="stat-label">Logins (7 dias)</span>
+            <div class="stat-value">{{ stats.total_users }}</div>
+            <div class="stat-label">Usuários Intranet</div>
         </div>
     </div>
 </div>
 
+<!-- Charts Section -->
+<div class="dashboard-grid" style="grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); margin-bottom: 24px;">
+    <!-- Chart: Activity by Action -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">📊 Atividade por Operação</h3>
+        </div>
+        <div class="card-body" style="height: 300px; position: relative;">
+            <canvas id="actionsChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Chart: Activity by Folder -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">📁 Uso por Pasta (Top 5)</h3>
+        </div>
+        <div class="card-body" style="height: 300px; position: relative;">
+            <canvas id="foldersChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- Dashboard Info Grid -->
 <div class="dashboard-grid">
-    <div class="dashboard-card">
-        <h3>Status do TrueNAS</h3>
-        <div class="status-indicator {% if truenas_online %}status-online{% else %}status-offline{% endif %}">
-            <span class="status-dot"></span>
-            <span>{{ 'Online' if truenas_online else 'Offline' }}</span>
+    <!-- Server Status -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Status do Servidor</h3>
         </div>
-        <p class="text-muted">IP: {{ truenas_ip }}</p>
+        <div class="card-body">
+            <div class="status-indicator {% if esservidor_online %}status-online{% else %}status-offline{% endif %}"
+                style="margin-bottom: 16px;">
+                <span class="status-dot"></span>
+                <span style="font-weight: 600;">{{ 'Online' if esservidor_online else 'Offline' }}</span>
+            </div>
+            <p class="text-muted text-sm">IP: <code>{{ esservidor_ip }}</code></p>
+        </div>
     </div>
 
-    <div class="dashboard-card">
-        <h3>Ações Rápidas</h3>
-        <div class="quick-actions">
-            <a href="{{ url_for('admin.users_new') }}" class="btn btn-primary">
-                ➕ Cadastrar Usuário
-            </a>
-            <a href="{{ url_for('admin.users_list') }}" class="btn btn-secondary">
-                👥 Ver Usuários
-            </a>
+    <!-- Quick Actions -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Ações Rápidas</h3>
+        </div>
+        <div class="card-body">
+            <div class="quick-actions">
+                <a href="{{ url_for('admin.users_new') }}" class="btn btn-primary">
+                    ➕ Novo Usuário
+                </a>
+                <a href="{{ url_for('admin.audit_logs') }}" class="btn btn-secondary">
+                    🔍 Atividades do Servidor
+                </a>
+                <a href="{{ url_for('admin.users_list') }}" class="btn btn-ghost">
+                    👥 Gerenciar
+                </a>
+            </div>
         </div>
     </div>
 </div>
 
-<div class="dashboard-card" style="margin-top: 1.5rem;">
-    <h3>Últimos Acessos</h3>
-    {% if recent_logs %}
-    <table class="data-table">
-        <thead>
-            <tr>
-                <th>Data/Hora</th>
-                <th>Usuário</th>
-                <th>Ação</th>
-                <th>IP</th>
-                <th>Status</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for log in recent_logs %}
-            <tr>
-                <td>{{ log.timestamp.strftime('%d/%m/%Y %H:%M') }}</td>
-                <td>{{ log.username }}</td>
-                <td>{{ log.action }}</td>
-                <td>{{ log.ip_address or '-' }}</td>
-                <td>
-                    {% if log.success %}
-                    <span class="badge badge-success">✓</span>
-                    {% else %}
-                    <span class="badge badge-error">✗</span>
-                    {% endif %}
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-    <a href="{{ url_for('admin.logs') }}" class="btn btn-outline" style="margin-top: 1rem;">Ver Todos os Logs</a>
-    {% else %}
-    <p class="text-muted">Nenhum log registrado ainda.</p>
-    {% endif %}
+<!-- Recent Activity -->
+<div class="card">
+    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+        <h3 class="card-title">Últimos Acessos</h3>
+        <a href="{{ url_for('admin.logs') }}" class="btn btn-ghost btn-sm">Ver Todos →</a>
+    </div>
+    <div class="card-body" style="padding: 0;">
+        {% if recent_logs %}
+        <div class="table-container">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Data/Hora</th>
+                        <th>Usuário</th>
+                        <th>Ação</th>
+                        <th>IP</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in recent_logs %}
+                    <tr>
+                        <td>{{ log.timestamp.strftime('%d/%m/%Y %H:%M') }}</td>
+                        <td><strong>{{ log.username }}</strong></td>
+                        <td>
+                            {% if log.action == 'login' %}
+                            <span class="badge badge-success badge-dot">Login</span>
+                            {% elif log.action == 'logout' %}
+                            <span class="badge badge-secondary badge-dot">Logout</span>
+                            {% else %}
+                            <span class="badge badge-info">{{ log.action }}</span>
+                            {% endif %}
+                        </td>
+                        <td><code>{{ log.ip_address or 'N/A' }}</code></td>
+                        <td>
+                            {% if log.success %}
+                            <span class="badge badge-success">✓ OK</span>
+                            {% else %}
+                            <span class="badge badge-error">✕ Falha</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-state-icon">📋</div>
+            <h3 class="empty-state-title">Nenhum log recente</h3>
+            <p class="empty-state-description">Os acessos aparecerão aqui automaticamente.</p>
+        </div>
+        {% endif %}
+    </div>
 </div>
+{% endblock %}
 
-<style>
-    .admin-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 1.5rem;
-        padding-bottom: 1rem;
-        border-bottom: 1px solid var(--border);
+{% block extra_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // Cores do Tema Premium
+        const colors = {
+            bg: [
+                'rgba(37, 99, 235, 0.2)', // Acessos (Blue)
+                'rgba(245, 158, 11, 0.2)', // Edições (Orange)
+                'rgba(16, 185, 129, 0.2)', // Criações (Green)
+                'rgba(239, 68, 68, 0.2)'   // Deleções (Red)
+            ],
+            border: [
+                '#2563eb', '#f59e0b', '#10b981', '#ef4444'
+            ]
+        };
+
+        // 1. Gráfico de Ações
+        const actionsCtx = document.getElementById('actionsChart');
+        if (actionsCtx) {
+            new Chart(actionsCtx.getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: {{ chart_data.labels | tojson }},
+        datasets: [{
+            label: 'Registros',
+            data: {{ chart_data.action_counts | tojson }},
+        backgroundColor: colors.bg,
+        borderColor: ['#2563eb', '#f59e0b', '#10b981', '#ef4444'],
+        borderWidth: 1,
+        borderRadius: 4
+                }]
+            },
+        options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: { display: false },
+            tooltip: {
+                backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                titleColor: '#1e293b',
+                bodyColor: '#1e293b',
+                borderColor: '#e2e8f0',
+                borderWidth: 1
+            }
+        },
+        scales: {
+            y: {
+                beginAtZero: true,
+                grid: { color: 'rgba(0,0,0,0.05)' },
+                ticks: { stepSize: 1 }
+            },
+            x: { grid: { display: false } }
+        }
+    }
+        });
     }
 
-    .admin-header h1 {
-        margin: 0;
-        font-size: 1.75rem;
+    // 2. Gráfico de Pastas (Top 5)
+    const foldersCtx = document.getElementById('foldersChart');
+    if (foldersCtx) {
+        new Chart(foldersCtx.getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: {{ chart_data.folders | tojson }},
+    datasets: [{
+        label: 'Movimentações',
+        data: {{ chart_data.counts | tojson }},
+        backgroundColor: 'rgba(59, 130, 246, 0.2)',
+        borderColor: '#3b82f6',
+        borderWidth: 1,
+        borderRadius: 4
+                }]
+            },
+    options: {
+        indexAxis: 'y',
+            responsive: true,
+                maintainAspectRatio: false,
+                    plugins: {
+            legend: { display: false },
+            tooltip: {
+                backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                    titleColor: '#1e293b',
+                        bodyColor: '#1e293b',
+                            borderColor: '#e2e8f0',
+                                borderWidth: 1
+            }
+        },
+        scales: {
+            x: {
+                beginAtZero: true,
+                    grid: { color: 'rgba(0,0,0,0.05)' },
+                ticks: { stepSize: 1 }
+            },
+            y: { grid: { display: false } }
+        }
     }
-
-    .admin-header p {
-        margin: 0.25rem 0 0;
-        color: var(--text-muted);
+        });
     }
-
-    .admin-nav {
-        display: flex;
-        gap: 0.5rem;
-        margin-bottom: 1.5rem;
-        padding: 0.5rem;
-        background: var(--bg-secondary);
-        border-radius: var(--border-radius);
-    }
-
-    .admin-nav-item {
-        padding: 0.5rem 1rem;
-        border-radius: 6px;
-        color: var(--text-secondary);
-        text-decoration: none;
-        font-weight: 500;
-        transition: all 0.2s;
-    }
-
-    .admin-nav-item:hover {
-        background: var(--bg-tertiary);
-        color: var(--text-primary);
-    }
-
-    .admin-nav-item.active {
-        background: var(--primary);
-        color: white;
-    }
-
-    .stats-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 1rem;
-        margin-bottom: 1.5rem;
-    }
-
-    .stat-card {
-        background: white;
-        border-radius: var(--border-radius);
-        padding: 1.25rem;
-        display: flex;
-        align-items: center;
-        gap: 1rem;
-        box-shadow: var(--shadow-sm);
-    }
-
-    .stat-icon {
-        font-size: 2rem;
-        background: var(--bg-secondary);
-        padding: 0.75rem;
-        border-radius: 12px;
-    }
-
-    .stat-value {
-        display: block;
-        font-size: 1.75rem;
-        font-weight: 700;
-        color: var(--text-primary);
-    }
-
-    .stat-label {
-        display: block;
-        font-size: 0.875rem;
-        color: var(--text-muted);
-    }
-
-    .dashboard-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-        gap: 1.5rem;
-    }
-
-    .dashboard-card {
-        background: white;
-        border-radius: var(--border-radius);
-        padding: 1.5rem;
-        box-shadow: var(--shadow-sm);
-    }
-
-    .dashboard-card h3 {
-        margin: 0 0 1rem;
-        font-size: 1.1rem;
-        color: var(--text-primary);
-    }
-
-    .status-indicator {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        font-weight: 600;
-        font-size: 1.1rem;
-    }
-
-    .status-dot {
-        width: 12px;
-        height: 12px;
-        border-radius: 50%;
-    }
-
-    .status-online .status-dot {
-        background: #22c55e;
-        box-shadow: 0 0 8px rgba(34, 197, 94, 0.5);
-    }
-
-    .status-offline .status-dot {
-        background: #ef4444;
-    }
-
-    .quick-actions {
-        display: flex;
-        flex-direction: column;
-        gap: 0.75rem;
-    }
-
-    .data-table {
-        width: 100%;
-        border-collapse: collapse;
-    }
-
-    .data-table th,
-    .data-table td {
-        padding: 0.75rem;
-        text-align: left;
-        border-bottom: 1px solid var(--border);
-    }
-
-    .data-table th {
-        background: var(--bg-secondary);
-        font-weight: 600;
-        font-size: 0.875rem;
-    }
-
-    .data-table tbody tr:hover {
-        background: var(--bg-secondary);
-    }
-
-    .badge {
-        padding: 0.25rem 0.5rem;
-        border-radius: 4px;
-        font-size: 0.75rem;
-        font-weight: 600;
-    }
-
-    .badge-success {
-        background: #dcfce7;
-        color: #166534;
-    }
-
-    .badge-error {
-        background: #fee2e2;
-        color: #991b1b;
-    }
-
-    .text-muted {
-        color: var(--text-muted);
-    }
-</style>
+});
+</script>
 {% endblock %}

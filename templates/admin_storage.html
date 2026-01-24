@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+
+{% block title %}Armazenamento{% endblock %}
+{% block page_title %}Armazenamento{% endblock %}
+{% block page_subtitle %}<p class="topbar-subtitle">Pools de discos e datasets do ES-SERVIDOR</p>{% endblock %}
+
+{% block content %}
+<!-- Stats Cards -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-icon primary">🗄️</div>
+        <div class="stat-info">
+            <div class="stat-value">{{ stats.total_pools }}</div>
+            <div class="stat-label">Pools de Armazenamento</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon success">📂</div>
+        <div class="stat-info">
+            <div class="stat-value">{{ stats.total_datasets }}</div>
+            <div class="stat-label">Datasets</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon warning">📊</div>
+        <div class="stat-info">
+            <div class="stat-value">{{ stats.usage_percent }}%</div>
+            <div class="stat-label">Uso Total</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon error">💾</div>
+        <div class="stat-info">
+            <div class="stat-value">{{ (stats.total_free / 1073741824) | round(1) }} GB</div>
+            <div class="stat-label">Espaço Livre</div>
+        </div>
+    </div>
+</div>
+
+<!-- Pools Section -->
+<div class="card mb-6">
+    <div class="card-header">
+        <h3 class="card-title">🗄️ Pools de Armazenamento</h3>
+    </div>
+    <div class="card-body">
+        {% if pools %}
+        <div class="pools-grid">
+            {% for pool in pools %}
+            <div class="pool-card">
+                <div class="pool-header">
+                    <span class="pool-name">{{ pool.name }}</span>
+                    <span class="badge {% if pool.status == 'ONLINE' %}badge-success{% else %}badge-warning{% endif %}">
+                        {{ pool.status }}
+                    </span>
+                </div>
+                <div class="pool-usage">
+                    <div class="usage-bar">
+                        {% set usage_percent = ((pool.allocated / pool.size * 100) if pool.size > 0 else 0) | round(1)
+                        %}
+                        <div class="usage-fill {% if usage_percent > 80 %}danger{% elif usage_percent > 60 %}warning{% endif %}"
+                            style="width: {{ usage_percent }}%"></div>
+                    </div>
+                    <div class="usage-text">
+                        <span>{{ (pool.allocated / 1073741824) | round(1) }} GB usados</span>
+                        <span>{{ (pool.size / 1073741824) | round(1) }} GB total</span>
+                    </div>
+                </div>
+                <div class="pool-info">
+                    <span class="pool-health {% if pool.healthy %}healthy{% else %}warning{% endif %}">
+                        {% if pool.healthy %}✅ Saudável{% else %}⚠️ Atenção{% endif %}
+                    </span>
+                    <span class="text-muted text-sm">{{ (pool.free / 1073741824) | round(1) }} GB livres</span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-state-icon">🗄️</div>
+            <h3 class="empty-state-title">Nenhum pool encontrado</h3>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Datasets Section -->
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">📂 Datasets</h3>
+    </div>
+    <div class="card-body" style="padding: 0;">
+        {% if datasets %}
+        <div class="table-container">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Nome</th>
+                        <th>Pool</th>
+                        <th>Tipo</th>
+                        <th>Usado</th>
+                        <th>Disponível</th>
+                        <th>Compressão</th>
+                        <th>Somente Leitura</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for ds in datasets %}
+                    <tr>
+                        <td>
+                            <strong>{{ ds.name }}</strong>
+                            {% if ds.comments %}
+                            <br><span class="text-muted text-xs">{{ ds.comments }}</span>
+                            {% endif %}
+                        </td>
+                        <td><span class="badge badge-info">{{ ds.pool }}</span></td>
+                        <td>{{ ds.type }}</td>
+                        <td>{{ (ds.used_bytes / 1073741824) | round(2) }} GB</td>
+                        <td>{{ (ds.available_bytes / 1073741824) | round(2) }} GB</td>
+                        <td>
+                            {% if ds.compression != 'off' %}
+                            <span class="badge badge-success">{{ ds.compression }}</span>
+                            {% else %}
+                            <span class="badge badge-secondary">Off</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if ds.readonly %}
+                            <span class="badge badge-warning">Sim</span>
+                            {% else %}
+                            <span class="badge badge-secondary">Não</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-state-icon">📂</div>
+            <h3 class="empty-state-title">Nenhum dataset encontrado</h3>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

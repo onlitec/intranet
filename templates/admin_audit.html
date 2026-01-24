@@ -1,0 +1,389 @@
+{% extends "base.html" %}
+
+{% block title %}Atividades do Servidor{% endblock %}
+{% block page_title %}Atividades do Servidor{% endblock %}
+{% block page_subtitle %}<p class="topbar-subtitle">Monitoramento de atividades e arquivos no ES-SERVIDOR</p>{% endblock
+%}
+
+{% block content %}
+<!-- Stats Cards -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-icon error">🗑️</div>
+        <div class="stat-info">
+            <div class="stat-value">{{ stats.deletions }}</div>
+            <div class="stat-label">Deletados (Recentes)</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon success">📁</div>
+        <div class="stat-info">
+            <div class="stat-value">{{ stats.creations }}</div>
+            <div class="stat-label">Criados (Recentes)</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon warning">📝</div>
+        <div class="stat-info">
+            <div class="stat-value">{{ stats.edits }}</div>
+            <div class="stat-label">Editados (Recentes)</div>
+        </div>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="filters-bar">
+    <form id="auditFilters" method="GET" action="{{ url_for('admin.audit_logs') }}"
+        style="display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; width: 100%;">
+        <div class="filter-group">
+            <label>Usuário</label>
+            <input type="text" id="filterUser" name="username" value="{{ filters.username }}" placeholder="Ex: joao"
+                class="form-control">
+        </div>
+        <div class="filter-group">
+            <label>Operação</label>
+            <select id="filterEvent" name="event" class="form-control">
+                <option value="">Todas as Ações</option>
+                <option value="OPEN" {% if filters.event=='OPEN' %}selected{% endif %}>Acessou</option>
+                <option value="CREATE" {% if filters.event=='CREATE' %}selected{% endif %}>Criou</option>
+                <option value="WRITE" {% if filters.event=='WRITE' %}selected{% endif %}>Editou (Escrita)</option>
+                <option value="SET_ATTR" {% if filters.event=='SET_ATTR' %}selected{% endif %}>Editou (Atrib.)</option>
+                <option value="UNLINK" {% if filters.event=='UNLINK' %}selected{% endif %}>Deletou</option>
+                <option value="RENAME" {% if filters.event=='RENAME' %}selected{% endif %}>Renomeou</option>
+                <option value="MKDIR" {% if filters.event=='MKDIR' %}selected{% endif %}>Criou Pasta</option>
+                <option value="RMDIR" {% if filters.event=='RMDIR' %}selected{% endif %}>Deletou Pasta</option>
+            </select>
+        </div>
+        <div class="filter-group">
+            <label>Registros</label>
+            <select id="filterLimit" name="limit" class="form-control" style="width: 100px;">
+                <option value="10" {% if filters.limit==10 %}selected{% endif %}>10</option>
+                <option value="25" {% if filters.limit==25 %}selected{% endif %}>25</option>
+                <option value="50" {% if filters.limit==50 or not filters.limit %}selected{% endif %}>50</option>
+                <option value="100" {% if filters.limit==100 %}selected{% endif %}>100</option>
+                <option value="250" {% if filters.limit==250 %}selected{% endif %}>250</option>
+                <option value="500" {% if filters.limit==500 %}selected{% endif %}>500</option>
+                <option value="1000" {% if filters.limit==1000 %}selected{% endif %}>1000</option>
+            </select>
+        </div>
+        <div class="filter-actions">
+            <button type="submit" class="btn btn-primary">🔍 Filtrar</button>
+            <a href="{{ url_for('admin.audit_logs') }}" class="btn btn-secondary">Limpar</a>
+        </div>
+    </form>
+</div>
+
+<!-- Dynamic Toggle Bar -->
+<div
+    style="margin: 16px 0; display: flex; align-items: center; justify-content: space-between; background: white; padding: 12px 16px; border-radius: var(--radius-md); border: 1px solid var(--border-color); box-shadow: var(--shadow-sm);">
+    <div style="display: flex; align-items: center; gap: 12px;">
+        <div id="liveIndicator" style="display: none; align-items: center; gap: 8px;">
+            <span
+                style="display: inline-block; width: 10px; height: 10px; background: var(--success); border-radius: 50%; box-shadow: 0 0 8px var(--success); animation: pulse 2s infinite;"></span>
+            <span
+                style="font-size: var(--text-xs); font-weight: 600; color: var(--success); text-transform: uppercase; letter-spacing: 0.5px;">Live</span>
+        </div>
+        <div id="statusText" style="font-size: var(--text-sm); color: var(--text-secondary);">Atualização Automática
+        </div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 8px;">
+        <span id="updateTimer"
+            style="font-size: var(--text-xs); color: var(--text-muted); font-family: var(--font-mono); display: none;">Próxima:
+            5s</span>
+        <label class="switch">
+            <input type="checkbox" id="autoUpdateToggle">
+            <span class="slider round"></span>
+        </label>
+    </div>
+</div>
+
+<!-- Audit Table -->
+<div class="card">
+    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+        <h3 class="card-title">📋 Logs de Auditoria</h3>
+        <span id="lastUpdateTime" style="font-size: var(--text-xs); color: var(--text-muted); font-weight: 400;"></span>
+    </div>
+    <div class="card-body" style="padding: 0;">
+        <div id="logsContainer" class="table-container">
+            <table class="data-table" id="auditTable">
+                <thead>
+                    <tr>
+                        <th>Data/Hora</th>
+                        <th>Usuário</th>
+                        <th>Ação</th>
+                        <th>Caminho</th>
+                        <th>IP</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="auditTableBody">
+                    {% if logs %}
+                    {% for log in logs %}
+                    <tr>
+                        <td style="white-space: nowrap;">{{ log.timestamp }}</td>
+                        <td><strong>{{ log.username }}</strong></td>
+                        <td>
+                            {% if 'Deletou' in log.action %}
+                            <span class="badge badge-error">{{ log.action }}</span>
+                            {% elif 'Criou' in log.action %}
+                            <span class="badge badge-success">{{ log.action }}</span>
+                            {% elif 'Editou' in log.action %}
+                            <span class="badge badge-warning">{{ log.action }}</span>
+                            {% else %}
+                            <span class="badge badge-info">{{ log.action }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <code
+                                style="font-size: var(--text-xs); max-width: 400px; display: inline-block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
+                                title="{{ log.path }}">{{ log.path }}</code>
+                        </td>
+                        <td><code>{{ log.ip }}</code></td>
+                        <td>
+                            {% if log.status %}
+                            <span class="badge badge-success">✓ OK</span>
+                            {% else %}
+                            <span class="badge badge-error">✕ Falha</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% else %}
+                    <tr>
+                        <td colspan="6" style="text-align: center; padding: 48px;">
+                            <div class="empty-state">
+                                <div class="empty-state-icon">🔍</div>
+                                <h3 class="empty-state-title">Nenhum registro encontrado</h3>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination (Hidden during auto-update for clarity) -->
+        <div id="paginationContainer" class="pagination">
+            {% if filters.page > 1 %}
+            <a href="{{ url_for('admin.audit_logs', page=filters.page-1, username=filters.username, event=filters.event, limit=filters.limit) }}"
+                class="btn btn-secondary btn-sm">← Anterior</a>
+            {% endif %}
+            <span class="pagination-info">Página {{ filters.page }}</span>
+            <a href="{{ url_for('admin.audit_logs', page=filters.page+1, username=filters.username, event=filters.event, limit=filters.limit) }}"
+                class="btn btn-secondary btn-sm">Próxima →</a>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* Pulse Animation */
+    @keyframes pulse {
+        0% {
+            opacity: 0.6;
+            transform: scale(0.9);
+        }
+
+        50% {
+            opacity: 1;
+            transform: scale(1.1);
+        }
+
+        100% {
+            opacity: 0.6;
+            transform: scale(0.9);
+        }
+    }
+
+    /* Switch Component */
+    .switch {
+        position: relative;
+        display: inline-block;
+        width: 44px;
+        height: 22px;
+    }
+
+    .switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+    }
+
+    .slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: #cbd5e1;
+        transition: .4s;
+    }
+
+    .slider:before {
+        position: absolute;
+        content: "";
+        height: 16px;
+        width: 16px;
+        left: 3px;
+        bottom: 3px;
+        background-color: white;
+        transition: .4s;
+    }
+
+    input:checked+.slider {
+        background-color: var(--primary);
+    }
+
+    input:checked+.slider:before {
+        transform: translateX(22px);
+    }
+
+    .slider.round {
+        border-radius: 34px;
+    }
+
+    .slider.round:before {
+        border-radius: 50%;
+    }
+
+    /* New/Updated Row Highlight */
+    .new-row {
+        animation: highlightRow 3s ease-out;
+    }
+
+    @keyframes highlightRow {
+        0% {
+            background-color: var(--primary-light);
+        }
+
+        100% {
+            background-color: transparent;
+        }
+    }
+</style>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const toggle = document.getElementById('autoUpdateToggle');
+        const liveIndicator = document.getElementById('liveIndicator');
+        const timerDisplay = document.getElementById('updateTimer');
+        const pagination = document.getElementById('paginationContainer');
+        const tableBody = document.getElementById('auditTableBody');
+        const lastUpdateSpan = document.getElementById('lastUpdateTime');
+
+        let updateInterval;
+        let countdownInterval;
+        let secondsLeft = 5;
+
+        // Configurações de filtro
+        const getFilters = () => {
+            return {
+                username: document.getElementById('filterUser').value,
+                event: document.getElementById('filterEvent').value,
+                limit: document.getElementById('filterLimit').value,
+                page: {{ filters.page }}
+            };
+        };
+
+    function updateLogs() {
+        const filters = getFilters();
+        const params = new URLSearchParams(filters);
+
+        fetch(`/admin/api/audit/data?${params.toString()}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    renderTable(data.logs);
+                    updateStats(data.stats);
+                    lastUpdateSpan.textContent = `Atualizado às ${new Date().toLocaleTimeString()}`;
+                }
+            })
+            .catch(err => console.error('Erro ao buscar logs:', err));
+    }
+
+    function renderTable(logs) {
+        if (!logs || logs.length === 0) return;
+
+        const currentFirstRow = tableBody.querySelector('tr td')?.textContent;
+        const newFirstRow = logs[0].timestamp;
+
+        if (currentFirstRow === newFirstRow) return;
+
+        let html = '';
+        logs.forEach(log => {
+            let badgeClass = 'badge-info';
+            if (log.action.includes('Deletou')) badgeClass = 'badge-error';
+            else if (log.action.includes('Criou')) badgeClass = 'badge-success';
+            else if (log.action.includes('Editou')) badgeClass = 'badge-warning';
+
+            html += `
+                <tr class="${currentFirstRow && log.timestamp > currentFirstRow ? 'new-row' : ''}">
+                    <td style="white-space: nowrap;">${log.timestamp}</td>
+                    <td><strong>${log.username}</strong></td>
+                    <td><span class="badge ${badgeClass}">${log.action}</span></td>
+                    <td>
+                        <code style="font-size: var(--text-xs); max-width: 400px; display: inline-block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${log.path}">${log.path}</code>
+                    </td>
+                    <td><code>${log.ip}</code></td>
+                    <td><span class="badge ${log.status ? 'badge-success' : 'badge-error'}">${log.status ? '✓ OK' : '✕ Falha'}</span></td>
+                </tr>
+            `;
+        });
+
+        tableBody.innerHTML = html;
+    }
+
+    function updateStats(stats) {
+        const statValues = document.querySelectorAll('.stat-value');
+        if (statValues.length >= 3) {
+            statValues[0].textContent = stats.deletions;
+            statValues[1].textContent = stats.creations;
+            statValues[2].textContent = stats.edits;
+        }
+    }
+
+    function startAutoUpdate() {
+        liveIndicator.style.display = 'flex';
+        timerDisplay.style.display = 'inline';
+        pagination.style.opacity = '0.3';
+        pagination.style.pointerEvents = 'none';
+
+        updateLogs();
+        updateInterval = setInterval(updateLogs, 5000);
+
+        secondsLeft = 5;
+        countdownInterval = setInterval(() => {
+            secondsLeft--;
+            if (secondsLeft <= 0) secondsLeft = 5;
+            timerDisplay.textContent = `Próxima: ${secondsLeft}s`;
+        }, 1000);
+    }
+
+    function stopAutoUpdate() {
+        liveIndicator.style.display = 'none';
+        timerDisplay.style.display = 'none';
+        pagination.style.opacity = '1';
+        pagination.style.pointerEvents = 'auto';
+
+        clearInterval(updateInterval);
+        clearInterval(countdownInterval);
+    }
+
+    toggle.addEventListener('change', function () {
+        if (this.checked) {
+            startAutoUpdate();
+            localStorage.setItem('audit_auto_update', 'true');
+        } else {
+            stopAutoUpdate();
+            localStorage.setItem('audit_auto_update', 'false');
+        }
+    });
+
+    const savedState = localStorage.getItem('audit_auto_update');
+    if (savedState === 'true') {
+        toggle.checked = true;
+        startAutoUpdate();
+    }
+});
+</script>
+{% endblock %}

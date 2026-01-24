@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+
+{% block title %}Usuários do Servidor{% endblock %}
+{% block page_title %}Usuários do Servidor{% endblock %}
+{% block page_subtitle %}<p class="topbar-subtitle">Usuários e grupos locais do ES-SERVIDOR</p>{% endblock %}
+
+{% block content %}
+<!-- Filter Bar -->
+<div style="margin-bottom: 24px;">
+    <a href="{{ url_for('admin.server_users', show_builtin='true' if not show_builtin else 'false') }}"
+        class="btn {% if show_builtin %}btn-primary{% else %}btn-secondary{% endif %}">
+        👁️ {% if show_builtin %}Ocultando Sistema{% else %}Mostrar Sistema{% endif %}
+    </a>
+</div>
+
+<!-- Stats Cards -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-icon primary">👤</div>
+        <div class="stat-info">
+            <div class="stat-value">{{ stats.total_users }}</div>
+            <div class="stat-label">Usuários</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon success">💼</div>
+        <div class="stat-info">
+            <div class="stat-value">{{ stats.smb_users }}</div>
+            <div class="stat-label">Usuários SMB</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon error">🔒</div>
+        <div class="stat-info">
+            <div class="stat-value">{{ stats.locked_users }}</div>
+            <div class="stat-label">Bloqueados</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon warning">👥</div>
+        <div class="stat-info">
+            <div class="stat-value">{{ stats.total_groups }}</div>
+            <div class="stat-label">Grupos</div>
+        </div>
+    </div>
+</div>
+
+<!-- Users Table -->
+<div class="card mb-6">
+    <div class="card-header">
+        <h3 class="card-title">👤 Usuários do Servidor</h3>
+    </div>
+    <div class="card-body" style="padding: 0;">
+        {% if users %}
+        <div class="table-container">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>UID</th>
+                        <th>Usuário</th>
+                        <th>Nome Completo</th>
+                        <th>Home</th>
+                        <th>Grupos</th>
+                        <th>SMB</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in users %}
+                    <tr {% if user.locked %}style="background: var(--warning-light);" {% endif %}>
+                        <td><code>{{ user.uid }}</code></td>
+                        <td>
+                            <strong>{{ user.username }}</strong>
+                            {% if user.builtin %}<span class="badge badge-secondary"
+                                style="margin-left: 4px;">Sistema</span>{% endif %}
+                        </td>
+                        <td>{{ user.full_name or '-' }}</td>
+                        <td>
+                            {% if user.home %}
+                            <code style="font-size: var(--text-xs);">{{ user.home }}</code>
+                            {% else %}-{% endif %}
+                        </td>
+                        <td>
+                            {% if user.groups %}
+                            <div class="flex flex-wrap gap-2">
+                                {% for group in user.groups[:3] %}
+                                <span class="badge badge-info">{{ group }}</span>
+                                {% endfor %}
+                                {% if user.groups | length > 3 %}
+                                <span class="badge badge-secondary">+{{ user.groups | length - 3 }}</span>
+                                {% endif %}
+                            </div>
+                            {% else %}-{% endif %}
+                        </td>
+                        <td>
+                            {% if user.smb %}
+                            <span class="badge badge-success">Sim</span>
+                            {% else %}
+                            <span class="badge badge-secondary">Não</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if user.locked %}
+                            <span class="badge badge-error">🔒 Bloqueado</span>
+                            {% else %}
+                            <span class="badge badge-success">✓ Ativo</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-state-icon">👤</div>
+            <h3 class="empty-state-title">Nenhum usuário encontrado</h3>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Groups Grid -->
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">👥 Grupos do Servidor</h3>
+    </div>
+    <div class="card-body">
+        {% if groups %}
+        <div class="groups-grid">
+            {% for group in groups %}
+            <div class="group-card">
+                <div class="group-header">
+                    <span class="group-name">{{ group.name }}</span>
+                    <span class="group-gid">GID: {{ group.gid }}</span>
+                </div>
+                <div style="margin-top: 8px;">
+                    {% if group.builtin %}<span class="badge badge-secondary">Sistema</span>{% endif %}
+                    {% if group.smb %}<span class="badge badge-info">SMB</span>{% endif %}
+                </div>
+                {% if group.users %}
+                <div class="group-users">
+                    <div class="group-users-title">Membros:</div>
+                    <div class="flex flex-wrap gap-2">
+                        {% for user in group.users[:5] %}
+                        <span class="badge badge-secondary">{{ user }}</span>
+                        {% endfor %}
+                        {% if group.users | length > 5 %}
+                        <span class="text-muted text-xs">+{{ group.users | length - 5 }} mais</span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-state-icon">👥</div>
+            <h3 class="empty-state-title">Nenhum grupo encontrado</h3>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

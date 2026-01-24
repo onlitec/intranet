@@ -1,236 +1,87 @@
 {% extends "base.html" %}
 
-{% block title %}Gerenciar Usuários{% endblock %}
+{% block title %}Usuários Intranet{% endblock %}
+{% block page_title %}Usuários Intranet{% endblock %}
+{% block page_subtitle %}<p class="topbar-subtitle">Gerencie os usuários que podem acessar a intranet</p>{% endblock %}
 
 {% block content %}
-<div class="admin-header">
-    <div class="admin-header-content">
-        <h1>👥 Usuários TrueNAS</h1>
-        <p>Gerencie os usuários que podem acessar a intranet</p>
+<!-- Action Bar -->
+<div style="display: flex; justify-content: flex-end; margin-bottom: 24px;">
+    <a href="{{ url_for('admin.users_new') }}" class="btn btn-primary">
+        ➕ Novo Usuário
+    </a>
+</div>
+
+<!-- Users Table -->
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">🔑 Usuários Cadastrados</h3>
     </div>
-    <div class="admin-header-actions">
-        <a href="{{ url_for('admin.users_new') }}" class="btn btn-primary">➕ Novo Usuário</a>
+    <div class="card-body" style="padding: 0;">
+        {% if users %}
+        <div class="table-container">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Usuário</th>
+                        <th>Nome Completo</th>
+                        <th>Último Acesso</th>
+                        <th>Status</th>
+                        <th style="text-align: center;">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in users %}
+                    <tr>
+                        <td><strong>{{ user.username }}</strong></td>
+                        <td>{{ user.full_name }}</td>
+                        <td>
+                            {% if user.last_login %}
+                            {{ user.last_login.strftime('%d/%m/%Y %H:%M') }}
+                            {% else %}
+                            <span class="text-muted">Nunca</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if user.active %}
+                            <span class="badge badge-success badge-dot">Ativo</span>
+                            {% else %}
+                            <span class="badge badge-error badge-dot">Inativo</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="table-actions" style="justify-content: center;">
+                                <a href="{{ url_for('admin.users_edit', user_id=user.id) }}"
+                                    class="btn btn-ghost btn-sm">✏️ Editar</a>
+                                <form action="{{ url_for('admin.users_toggle', user_id=user.id) }}" method="POST"
+                                    style="display: inline;">
+                                    <button type="submit" class="btn btn-ghost btn-sm">
+                                        {% if user.active %}🚫 Desativar{% else %}✅ Ativar{% endif %}
+                                    </button>
+                                </form>
+                                <form action="{{ url_for('admin.users_delete', user_id=user.id) }}" method="POST"
+                                    style="display: inline;"
+                                    onsubmit="return confirm('Tem certeza que deseja excluir este usuário?');">
+                                    <button type="submit" class="btn btn-ghost btn-sm" style="color: var(--error);">🗑️
+                                        Excluir</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-state-icon">👥</div>
+            <h3 class="empty-state-title">Nenhum usuário cadastrado</h3>
+            <p class="empty-state-description">Cadastre usuários para permitir acesso à intranet.</p>
+            <a href="{{ url_for('admin.users_new') }}" class="btn btn-primary" style="margin-top: 16px;">
+                ➕ Cadastrar Primeiro Usuário
+            </a>
+        </div>
+        {% endif %}
     </div>
 </div>
-
-<div class="admin-nav">
-    <a href="{{ url_for('admin.dashboard') }}" class="admin-nav-item">Dashboard</a>
-    <a href="{{ url_for('admin.users_list') }}" class="admin-nav-item active">Usuários</a>
-    <a href="{{ url_for('admin.logs') }}" class="admin-nav-item">Logs</a>
-</div>
-
-{% if users %}
-<div class="dashboard-card">
-    <table class="data-table">
-        <thead>
-            <tr>
-                <th>Usuário</th>
-                <th>Nome Completo</th>
-                <th>Status</th>
-                <th>Último Acesso</th>
-                <th>Criado em</th>
-                <th>Ações</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for user in users %}
-            <tr>
-                <td><strong>{{ user.username }}</strong></td>
-                <td>{{ user.full_name or '-' }}</td>
-                <td>
-                    {% if user.is_active %}
-                    <span class="badge badge-success">Ativo</span>
-                    {% else %}
-                    <span class="badge badge-error">Inativo</span>
-                    {% endif %}
-                </td>
-                <td>{{ user.last_access.strftime('%d/%m/%Y %H:%M') if user.last_access else 'Nunca' }}</td>
-                <td>{{ user.created_at.strftime('%d/%m/%Y') }}</td>
-                <td class="actions-cell">
-                    <a href="{{ url_for('admin.users_edit', user_id=user.id) }}" class="btn btn-sm btn-outline">✏️
-                        Editar</a>
-                    <form method="POST" action="{{ url_for('admin.users_toggle', user_id=user.id) }}"
-                        style="display: inline;">
-                        <button type="submit"
-                            class="btn btn-sm {% if user.is_active %}btn-warning{% else %}btn-success{% endif %}">
-                            {{ '⏸️ Desativar' if user.is_active else '▶️ Ativar' }}
-                        </button>
-                    </form>
-                    <form method="POST" action="{{ url_for('admin.users_delete', user_id=user.id) }}"
-                        style="display: inline;"
-                        onsubmit="return confirm('Tem certeza que deseja excluir o usuário {{ user.username }}?');">
-                        <button type="submit" class="btn btn-sm btn-danger">🗑️ Excluir</button>
-                    </form>
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-</div>
-{% else %}
-<div class="empty-state">
-    <div class="empty-icon">👥</div>
-    <h3>Nenhum usuário cadastrado</h3>
-    <p>Cadastre usuários do TrueNAS para permitir que acessem a intranet.</p>
-    <a href="{{ url_for('admin.users_new') }}" class="btn btn-primary">➕ Cadastrar Primeiro Usuário</a>
-</div>
-{% endif %}
-
-<style>
-    .admin-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 1.5rem;
-        padding-bottom: 1rem;
-        border-bottom: 1px solid var(--border);
-    }
-
-    .admin-header h1 {
-        margin: 0;
-        font-size: 1.75rem;
-    }
-
-    .admin-header p {
-        margin: 0.25rem 0 0;
-        color: var(--text-muted);
-    }
-
-    .admin-nav {
-        display: flex;
-        gap: 0.5rem;
-        margin-bottom: 1.5rem;
-        padding: 0.5rem;
-        background: var(--bg-secondary);
-        border-radius: var(--border-radius);
-    }
-
-    .admin-nav-item {
-        padding: 0.5rem 1rem;
-        border-radius: 6px;
-        color: var(--text-secondary);
-        text-decoration: none;
-        font-weight: 500;
-        transition: all 0.2s;
-    }
-
-    .admin-nav-item:hover {
-        background: var(--bg-tertiary);
-        color: var(--text-primary);
-    }
-
-    .admin-nav-item.active {
-        background: var(--primary);
-        color: white;
-    }
-
-    .dashboard-card {
-        background: white;
-        border-radius: var(--border-radius);
-        padding: 1.5rem;
-        box-shadow: var(--shadow-sm);
-    }
-
-    .data-table {
-        width: 100%;
-        border-collapse: collapse;
-    }
-
-    .data-table th,
-    .data-table td {
-        padding: 0.75rem;
-        text-align: left;
-        border-bottom: 1px solid var(--border);
-    }
-
-    .data-table th {
-        background: var(--bg-secondary);
-        font-weight: 600;
-        font-size: 0.875rem;
-    }
-
-    .data-table tbody tr:hover {
-        background: var(--bg-secondary);
-    }
-
-    .actions-cell {
-        display: flex;
-        gap: 0.5rem;
-        flex-wrap: wrap;
-    }
-
-    .btn-sm {
-        padding: 0.25rem 0.5rem;
-        font-size: 0.75rem;
-    }
-
-    .btn-warning {
-        background: #f59e0b;
-        color: white;
-        border: none;
-    }
-
-    .btn-warning:hover {
-        background: #d97706;
-    }
-
-    .btn-danger {
-        background: #ef4444;
-        color: white;
-        border: none;
-    }
-
-    .btn-danger:hover {
-        background: #dc2626;
-    }
-
-    .btn-success {
-        background: #22c55e;
-        color: white;
-        border: none;
-    }
-
-    .btn-success:hover {
-        background: #16a34a;
-    }
-
-    .badge {
-        padding: 0.25rem 0.5rem;
-        border-radius: 4px;
-        font-size: 0.75rem;
-        font-weight: 600;
-    }
-
-    .badge-success {
-        background: #dcfce7;
-        color: #166534;
-    }
-
-    .badge-error {
-        background: #fee2e2;
-        color: #991b1b;
-    }
-
-    .empty-state {
-        text-align: center;
-        padding: 3rem;
-        background: white;
-        border-radius: var(--border-radius);
-        box-shadow: var(--shadow-sm);
-    }
-
-    .empty-icon {
-        font-size: 4rem;
-        margin-bottom: 1rem;
-    }
-
-    .empty-state h3 {
-        margin: 0 0 0.5rem;
-    }
-
-    .empty-state p {
-        color: var(--text-muted);
-        margin-bottom: 1.5rem;
-    }
-</style>
 {% endblock %}

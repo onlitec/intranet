@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+
+{% block title %}Compartilhamentos SMB{% endblock %}
+{% block page_title %}Compartilhamentos{% endblock %}
+{% block page_subtitle %}<p class="topbar-subtitle">Pastas compartilhadas e permissões de acesso</p>{% endblock %}
+
+{% block content %}
+<!-- SMB Status Bar -->
+<div class="card mb-6"
+    style="background: {% if stats.smb_enabled %}var(--success-light){% else %}var(--error-light){% endif %}; border-color: {% if stats.smb_enabled %}var(--success){% else %}var(--error){% endif %};">
+    <div class="card-body"
+        style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <span style="font-size: 24px;">{% if stats.smb_enabled %}🟢{% else %}🔴{% endif %}</span>
+            <div>
+                <strong>Serviço SMB: {% if stats.smb_enabled %}Ativo{% else %}Inativo{% endif %}</strong>
+            </div>
+        </div>
+        <div style="display: flex; gap: 24px; font-size: var(--text-sm);">
+            <span>Grupo de Trabalho: <strong>{{ stats.workgroup }}</strong></span>
+            <span>NetBIOS: <strong>{{ stats.netbiosname }}</strong></span>
+        </div>
+    </div>
+</div>
+
+<!-- Stats Cards -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-icon primary">📁</div>
+        <div class="stat-info">
+            <div class="stat-value">{{ stats.total_shares }}</div>
+            <div class="stat-label">Compartilhamentos</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon success">✅</div>
+        <div class="stat-info">
+            <div class="stat-value">{{ stats.active_shares }}</div>
+            <div class="stat-label">Ativos</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon error">🚫</div>
+        <div class="stat-info">
+            <div class="stat-value">{{ stats.total_shares - stats.active_shares }}</div>
+            <div class="stat-label">Desabilitados</div>
+        </div>
+    </div>
+</div>
+
+<!-- Shares List -->
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">📁 Lista de Compartilhamentos</h3>
+    </div>
+    <div class="card-body">
+        {% if shares %}
+        <div class="shares-grid">
+            {% for share in shares %}
+            <div class="share-card" style="{% if not share.enabled %}opacity: 0.7;{% endif %}">
+                <div
+                    style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+                    <div class="share-icon">📂</div>
+                    <span class="badge {% if share.enabled %}badge-success{% else %}badge-secondary{% endif %}">
+                        {% if share.enabled %}Ativo{% else %}Desabilitado{% endif %}
+                    </span>
+                </div>
+
+                <h4 class="share-name">{{ share.name }}</h4>
+                <code class="share-path">{{ share.path }}</code>
+
+                {% if share.comment %}
+                <p class="share-comment">💬 {{ share.comment }}</p>
+                {% endif %}
+
+                <!-- ACL Section -->
+                <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border-color);">
+                    <div
+                        style="font-size: var(--text-xs); font-weight: 600; color: var(--text-muted); margin-bottom: 8px;">
+                        🔐 PERMISSÕES
+                    </div>
+                    {% if share.acl %}
+                    <div class="acl-list">
+                        {% for ace in share.acl[:3] %}
+                        <div class="acl-entry {% if ace.type == 'ALLOW' %}allow{% else %}deny{% endif %}">
+                            <span class="acl-who">
+                                {% if ace.tag == 'USER' %}👤{% elif ace.tag == 'GROUP' %}👥{% else %}📌{% endif %}
+                                {{ ace.who or ace.tag }}
+                            </span>
+                            <span class="acl-perms">
+                                {{ ace.type }}
+                            </span>
+                        </div>
+                        {% endfor %}
+                        {% if share.acl | length > 3 %}
+                        <div class="text-muted text-xs" style="margin-top: 8px;">
+                            +{{ share.acl | length - 3 }} mais entradas
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% elif share.acl_error %}
+                    <div class="text-muted text-xs">⚠️ Erro ao carregar ACL</div>
+                    {% else %}
+                    <div class="text-muted text-xs">ℹ️ ACL não disponível</div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-state-icon">📁</div>
+            <h3 class="empty-state-title">Nenhum compartilhamento encontrado</h3>
+            <p class="empty-state-description">Configure compartilhamentos SMB no ES-SERVIDOR.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

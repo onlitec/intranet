@@ -1,10 +1,10 @@
-# Intranet TrueNAS
+# Intranet ES-SERVIDOR
 
-Plataforma de intranet para gerenciamento de compartilhamentos SMB do TrueNAS Scale.
+Plataforma de intranet para gerenciamento de compartilhamentos SMB do ES-SERVIDOR Scale.
 
 ## Funcionalidades
 
-- 🔐 **Login duplo**: Usuários TrueNAS e Administradores
+- 🔐 **Login duplo**: Usuários ES-SERVIDOR e Administradores
 - 📁 **Dashboard de compartilhamentos**: Visualização dos shares SMB do usuário
 - 📥 **Script de mapeamento**: Download de .bat para mapear drives automaticamente
 - 👥 **Gestão de usuários**: Painel admin para gerenciar usuários
@@ -13,8 +13,8 @@ Plataforma de intranet para gerenciamento de compartilhamentos SMB do TrueNAS Sc
 ## Requisitos
 
 - Python 3.10+
-- TrueNAS Scale com API habilitada
-- Rede interna com acesso ao TrueNAS
+- ES-SERVIDOR Scale com API habilitada
+- Rede interna com acesso ao ES-SERVIDOR
 
 ## Instalação
 
@@ -43,8 +43,8 @@ python app.py
 Edite o arquivo `.env` com:
 
 ```env
-TRUENAS_IP=172.20.120.23
-TRUENAS_API_KEY=sua_api_key_aqui
+ESSERVIDOR_IP=172.20.120.23
+ESSERVIDOR_API_KEY=sua_api_key_aqui
 FLASK_SECRET_KEY=sua_chave_secreta
 ```
 

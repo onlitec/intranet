@@ -1,59 +1,58 @@
 {% extends "base.html" %}
 
-{% block title %}Login Administrativo{% endblock %}
+{% block title %}Login - Administrador{% endblock %}
+{% block body_class %}login-page{% endblock %}
 
-{% block content %}
-<div class="login-wrapper">
-    <div class="login-container">
-        <div class="login-header">
-            <div class="admin-badge">🔒 ADMIN</div>
-            <h2 class="login-title">Área Administrativa</h2>
-            <p class="login-subtitle">Acesso restrito a administradores</p>
+{% block body %}
+<div class="login-container">
+    <div class="login-header">
+        <div class="login-logo">🔒</div>
+        <span class="login-badge" style="background: var(--error-light); color: var(--error);">⚙️ ADMIN</span>
+        <h1 class="login-title">Painel Admin</h1>
+        <p class="login-subtitle">Acesso restrito a administradores</p>
+    </div>
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    <div class="flash-container" style="margin-bottom: 24px;">
+        {% for category, message in messages %}
+        <div class="alert alert-{{ category }}">
+            <span class="alert-icon">
+                {% if category == 'success' %}✓{% elif category == 'error' %}✕{% else %}ℹ{% endif %}
+            </span>
+            <span class="alert-message">{{ message }}</span>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% endwith %}
+
+    <form method="POST" action="{{ url_for('admin.login') }}" id="adminLoginForm">
+        <div class="form-group">
+            <label for="username" class="form-label">Usuário Admin</label>
+            <input type="text" id="username" name="username" class="form-control" placeholder="admin" required autofocus
+                autocomplete="username">
         </div>
 
-        <form method="POST" action="{{ url_for('admin.login') }}" class="login-form" id="adminLoginForm">
-            <div class="form-group">
-                <label for="username" class="form-label">Usuário Admin</label>
-                <input type="text" id="username" name="username" class="form-control"
-                    placeholder="Digite seu usuário de admin" required autofocus autocomplete="username">
-            </div>
-
-            <div class="form-group">
-                <label for="password" class="form-label">Senha</label>
-                <input type="password" id="password" name="password" class="form-control" placeholder="Digite sua senha"
-                    required autocomplete="current-password">
-            </div>
-
-            <button type="submit" class="btn btn-primary btn-block" id="loginBtn">
-                <span class="btn-text">Entrar como Admin</span>
-                <span class="btn-loader" style="display: none;">
-                    <span class="spinner"></span> Autenticando...
-                </span>
-            </button>
-        </form>
-
-        <div class="login-footer">
-            <p class="help-text">
-                <a href="{{ url_for('home') }}" style="color: var(--primary);">
-                    ← Voltar para login de usuário
-                </a>
-            </p>
+        <div class="form-group">
+            <label for="password" class="form-label">Senha</label>
+            <input type="password" id="password" name="password" class="form-control" placeholder="••••••••" required
+                autocomplete="current-password">
         </div>
+
+        <button type="submit" class="btn btn-primary btn-block btn-lg" id="loginBtn">
+            <span class="btn-text">Acessar Painel</span>
+            <span class="btn-loader" style="display: none;">
+                <span class="spinner"></span> Validando...
+            </span>
+        </button>
+    </form>
+
+    <div class="login-footer">
+        <a href="{{ url_for('home') }}">← Voltar para início</a>
     </div>
 </div>
-
-<style>
-    .admin-badge {
-        background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
-        color: white;
-        padding: 0.25rem 0.75rem;
-        border-radius: 999px;
-        font-size: 0.75rem;
-        font-weight: 600;
-        display: inline-block;
-        margin-bottom: 0.5rem;
-    }
-</style>
 
 <script>
     document.getElementById('adminLoginForm').addEventListener('submit', function (e) {

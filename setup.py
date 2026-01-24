@@ -70,8 +70,8 @@ def create_env_file():
     
     # Criar conteúdo do .env
     env_content = f"""# Configurações do TrueNAS
-TRUENAS_IP={truenas_ip}
-TRUENAS_API_KEY={api_key}
+ESSERVIDOR_IP={truenas_ip}
+ESSERVIDOR_API_KEY={api_key}
 
 # Configurações do Flask
 FLASK_SECRET_KEY={secret_key}
@@ -102,8 +102,8 @@ def test_truenas_connection():
         # Carregar configurações
         load_dotenv()
         
-        truenas_ip = os.getenv('TRUENAS_IP')
-        api_key = os.getenv('TRUENAS_API_KEY')
+        truenas_ip = os.getenv('ESSERVIDOR_IP')
+        api_key = os.getenv('ESSERVIDOR_API_KEY')
         
         print(f"Testando conexão com TrueNAS em {truenas_ip}...")
         

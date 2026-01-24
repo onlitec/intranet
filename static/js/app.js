@@ -1,5 +1,5 @@
 /**
- * Intranet TrueNAS - JavaScript Interactions
+ * Intranet ES-SERVIDOR - JavaScript Interactions
  * Handles form validation, loading states, and UI enhancements
  */
 
@@ -246,7 +246,7 @@ document.addEventListener('DOMContentLoaded', function () {
     setupKeyboardShortcuts();
 
     // Log app initialization
-    console.log('✓ Intranet TrueNAS inicializado');
+    console.log('✓ Intranet ES-SERVIDOR inicializado');
 });
 
 // ========================================

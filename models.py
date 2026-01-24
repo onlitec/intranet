@@ -1,5 +1,5 @@
 """
-Modelos de Banco de Dados - Intranet TrueNAS
+Modelos de Banco de Dados - Intranet ES-SERVIDOR
 Usa SQLAlchemy com SQLite para persistência local
 """
 from datetime import datetime
@@ -23,7 +23,7 @@ class AdminUser(db.Model):
     last_login = db.Column(db.DateTime)
     
     # Relacionamento com usuários criados por este admin
-    created_users = db.relationship('TrueNASUser', backref='created_by_admin', lazy='dynamic')
+    created_users = db.relationship('ESSERVIDORUser', backref='created_by_admin', lazy='dynamic')
     
     def set_password(self, password: str):
         """Define a senha do admin (hash bcrypt)"""
@@ -42,8 +42,8 @@ class AdminUser(db.Model):
         return f'<AdminUser {self.username}>'
 
 
-class TrueNASUser(db.Model):
-    """Usuários do TrueNAS cadastrados pelo admin"""
+class ESSERVIDORUser(db.Model):
+    """Usuários do ES-SERVIDOR cadastrados pelo admin"""
     __tablename__ = 'truenas_users'
     
     id = db.Column(db.Integer, primary_key=True)
@@ -74,7 +74,7 @@ class TrueNASUser(db.Model):
         db.session.commit()
     
     def __repr__(self):
-        return f'<TrueNASUser {self.username}>'
+        return f'<ESSERVIDORUser {self.username}>'
 
 
 class AccessLog(db.Model):

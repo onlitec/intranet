@@ -1,79 +1,62 @@
 {% extends "base.html" %}
 
-{% block title %}Dashboard{% endblock %}
+{% block title %}Meus Compartilhamentos{% endblock %}
+{% block page_title %}Meus Compartilhamentos{% endblock %}
+{% block page_subtitle %}<p class="topbar-subtitle">Olá, {{ user.full_name }}! Seus recursos de rede.</p>{% endblock %}
 
 {% block content %}
-<div class="dashboard-header">
-    <div class="welcome-section">
-        <h2 class="dashboard-title">Olá, {{ user.full_name }}!</h2>
-        <p class="dashboard-subtitle">Seus compartilhamentos de rede</p>
-    </div>
-
-    {% if shares %}
-    <div class="actions">
-        <a href="{{ url_for('download_bat') }}" class="btn btn-primary">
-            <svg class="icon" width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
-                <path
-                    d="M8.5 6.5a.5.5 0 0 0-1 0v3.793L6.354 9.146a.5.5 0 1 0-.708.708l2 2a.5.5 0 0 0 .708 0l2-2a.5.5 0 0 0-.708-.708L8.5 10.293V6.5z" />
-                <path
-                    d="M14 14V4.5L9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2zM9.5 3A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5v2z" />
-            </svg>
-            Baixar Script de Mapeamento
-        </a>
-    </div>
-    {% endif %}
+{% if shares %}
+<!-- Download Action -->
+<div style="margin-bottom: 24px;">
+    <a href="{{ url_for('download_bat') }}" class="btn btn-primary btn-lg">
+        📥 Baixar Script de Mapeamento
+    </a>
 </div>
 
-{% if shares %}
-<div class="shares-grid">
+<!-- Shares Grid -->
+<div class="shares-grid mb-6">
     {% for share in shares %}
     <div class="share-card">
-        <div class="share-icon">
-            <svg width="48" height="48" viewBox="0 0 16 16" fill="currentColor">
-                <path
-                    d="M9.828 3h3.982a2 2 0 0 1 1.992 2.181l-.637 7A2 2 0 0 1 13.174 14H2.825a2 2 0 0 1-1.991-1.819l-.637-7a1.99 1.99 0 0 1 .342-1.31L.5 3a2 2 0 0 1 2-2h3.672a2 2 0 0 1 1.414.586l.828.828A2 2 0 0 0 9.828 3zm-8.322.12C1.72 3.042 1.95 3 2.19 3h5.396l-.707-.707A1 1 0 0 0 6.172 2H2.5a1 1 0 0 0-1 .981l.006.139z" />
-            </svg>
-        </div>
-        <div class="share-content">
-            <h3 class="share-name">{{ share.name }}</h3>
-            <p class="share-path">{{ share.path }}</p>
-            {% if share.comment %}
-            <p class="share-comment">{{ share.comment }}</p>
-            {% endif %}
-        </div>
-        <div class="share-badge">
-            <span class="badge badge-success">Ativo</span>
+        <div class="share-icon">📂</div>
+        <h3 class="share-name">{{ share.name }}</h3>
+        <code class="share-path">{{ share.path }}</code>
+        {% if share.comment %}
+        <p class="share-comment">{{ share.comment }}</p>
+        {% endif %}
+        <div style="margin-top: 12px;">
+            <span class="badge badge-success badge-dot">Ativo</span>
         </div>
     </div>
     {% endfor %}
 </div>
 
+<!-- Instructions -->
 <div class="info-box">
-    <svg class="icon" width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
-        <path
-            d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0zM7 6.5a1 1 0 1 0 2 0 1 1 0 0 0-2 0zm1 2a.5.5 0 0 0-.5.5v3a.5.5 0 0 0 1 0V9a.5.5 0 0 0-.5-.5z" />
-    </svg>
-    <div>
+    <div class="info-box-icon">💡</div>
+    <div class="info-box-content">
         <strong>Como usar:</strong>
         <ol class="info-list">
             <li>Clique em "Baixar Script de Mapeamento" para baixar o arquivo .bat</li>
             <li>Execute o arquivo baixado em seu computador Windows</li>
-            <li>Digite sua senha do TrueNAS quando solicitado</li>
+            <li>Digite sua senha do ES-SERVIDOR quando solicitado</li>
             <li>Os compartilhamentos serão mapeados automaticamente como drives de rede</li>
         </ol>
     </div>
 </div>
 
 {% else %}
-<div class="empty-state">
-    <svg class="empty-icon" width="64" height="64" viewBox="0 0 16 16" fill="currentColor">
-        <path
-            d="M9.828 3h3.982a2 2 0 0 1 1.992 2.181l-.637 7A2 2 0 0 1 13.174 14H2.825a2 2 0 0 1-1.991-1.819l-.637-7a1.99 1.99 0 0 1 .342-1.31L.5 3a2 2 0 0 1 2-2h3.672a2 2 0 0 1 1.414.586l.828.828A2 2 0 0 0 9.828 3z" />
-    </svg>
-    <h3>Nenhum compartilhamento disponível</h3>
-    <p>Você não possui permissão em nenhum compartilhamento no momento.</p>
-    <p class="text-muted">Entre em contato com o administrador para obter acesso.</p>
+<!-- Empty State -->
+<div class="card">
+    <div class="card-body">
+        <div class="empty-state">
+            <div class="empty-state-icon">📁</div>
+            <h3 class="empty-state-title">Nenhum compartilhamento disponível</h3>
+            <p class="empty-state-description">
+                Você não possui permissão em nenhum compartilhamento no momento.
+                <br>Entre em contato com o administrador para obter acesso.
+            </p>
+        </div>
+    </div>
 </div>
 {% endif %}
-
 {% endblock %}

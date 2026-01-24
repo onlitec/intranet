@@ -1,219 +1,71 @@
 {% extends "base.html" %}
 
 {% block title %}{{ 'Editar' if user else 'Novo' }} Usuário{% endblock %}
+{% block page_title %}{{ 'Editar' if user else 'Novo' }} Usuário{% endblock %}
+{% block page_subtitle %}<p class="topbar-subtitle">{{ 'Atualize os dados do usuário' if user else 'Cadastre um novo
+    usuário para acessar a intranet' }}</p>{% endblock %}
 
 {% block content %}
-<div class="admin-header">
-    <div class="admin-header-content">
-        <h1>{{ '✏️ Editar' if user else '➕ Novo' }} Usuário TrueNAS</h1>
-        <p>{{ 'Atualize os dados do usuário' if user else 'Cadastre um novo usuário para acessar a intranet' }}</p>
+<div style="max-width: 600px;">
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">{{ '✏️ Editar' if user else '➕ Novo' }} Usuário ES-SERVIDOR</h3>
+        </div>
+        <div class="card-body">
+            <form method="POST"
+                action="{{ url_for('admin.users_edit', user_id=user.id) if user else url_for('admin.users_new') }}">
+
+                <div class="form-group">
+                    <label for="username" class="form-label required">Username do ES-SERVIDOR</label>
+                    <input type="text" id="username" name="username" class="form-control"
+                        value="{{ user.username if user else '' }}" placeholder="Ex: joao.silva" required {% if user
+                        %}readonly{% endif %}>
+                    <p class="form-helper">Nome de usuário exatamente como cadastrado no ES-SERVIDOR</p>
+                </div>
+
+                <div class="form-group">
+                    <label for="full_name" class="form-label required">Nome Completo</label>
+                    <input type="text" id="full_name" name="full_name" class="form-control"
+                        value="{{ user.full_name if user else '' }}" placeholder="Ex: João da Silva" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="api_key" class="form-label {% if not user %}required{% endif %}">
+                        API Key do ES-SERVIDOR
+                    </label>
+                    <input type="password" id="api_key" name="api_key" class="form-control"
+                        placeholder="{% if user %}Deixe em branco para manter a atual{% else %}Cole a API Key aqui{% endif %}"
+                        {% if not user %}required{% endif %}>
+                    <p class="form-helper">Chave gerada no ES-SERVIDOR (System Settings → API Keys)</p>
+                </div>
+
+                <div style="display: flex; gap: 12px; margin-top: 32px;">
+                    <button type="submit" class="btn btn-primary">
+                        💾 {{ 'Salvar Alterações' if user else 'Cadastrar Usuário' }}
+                    </button>
+                    <a href="{{ url_for('admin.users_list') }}" class="btn btn-secondary">
+                        Cancelar
+                    </a>
+                </div>
+            </form>
+        </div>
     </div>
-</div>
 
-<div class="admin-nav">
-    <a href="{{ url_for('admin.dashboard') }}" class="admin-nav-item">Dashboard</a>
-    <a href="{{ url_for('admin.users_list') }}" class="admin-nav-item active">Usuários</a>
-    <a href="{{ url_for('admin.logs') }}" class="admin-nav-item">Logs</a>
-</div>
-
-<div class="form-card">
-    <form method="POST"
-        action="{{ url_for('admin.users_edit', user_id=user.id) if user else url_for('admin.users_new') }}">
-
-        <div class="form-group">
-            <label for="username" class="form-label">Username do TrueNAS *</label>
-            <input type="text" id="username" name="username" class="form-control"
-                value="{{ user.username if user else '' }}" placeholder="Ex: joao.silva" {% if user %}readonly{% endif
-                %} required>
-            {% if user %}
-            <small class="form-text">O username não pode ser alterado.</small>
-            {% else %}
-            <small class="form-text">Deve ser exatamente igual ao usuário no TrueNAS.</small>
-            {% endif %}
+    <!-- Help Card -->
+    <div class="card mt-6">
+        <div class="card-header">
+            <h3 class="card-title">💡 Como gerar uma API Key</h3>
         </div>
-
-        {% if not user %}
-        <div class="form-group">
-            <label for="password" class="form-label">Senha de Acesso *</label>
-            <input type="password" id="password" name="password" class="form-control"
-                placeholder="Senha que o usuário usará para logar" required minlength="4">
-            <small class="form-text">Mínimo 4 caracteres. O usuário usará esta senha para acessar a intranet.</small>
-        </div>
-        {% else %}
-        <div class="form-group">
-            <label for="password" class="form-label">Nova Senha (opcional)</label>
-            <input type="password" id="password" name="password" class="form-control"
-                placeholder="Deixe em branco para manter a senha atual" minlength="4">
-            <small class="form-text">Preencha apenas se desejar alterar a senha do usuário.</small>
-        </div>
-        {% endif %}
-
-        <div class="form-group">
-            <label for="api_key" class="form-label">API Key do TrueNAS {{ '*' if not user else '' }}</label>
-            <input type="password" id="api_key" name="api_key" class="form-control"
-                placeholder="{{ 'Deixe em branco para manter a atual' if user else 'Cole a API Key do usuário' }}" {% if
-                not user %}required{% endif %}>
-            <small class="form-text">
-                {% if user %}
-                Preencha apenas se desejar atualizar a API Key.
-                {% else %}
-                <a href="#" onclick="toggleApiHelp(); return false;">❓ Como gerar a API Key do usuário?</a>
-                {% endif %}
-            </small>
-        </div>
-
-        <div id="apiHelp"
-            style="display: none; margin-bottom: 1rem; padding: 1rem; background: #dbeafe; border-radius: 8px; font-size: 0.875rem;">
-            <strong>📝 Para gerar a API Key do usuário:</strong>
-            <ol style="margin: 0.5rem 0 0 1.2rem; padding: 0;">
-                <li>Acesse o TrueNAS como o usuário (ou como admin)</li>
-                <li>Vá em <strong>Credentials → Users</strong></li>
-                <li>Clique no usuário desejado</li>
-                <li>Clique em <strong>"API Keys"</strong></li>
-                <li>Clique em <strong>"Add"</strong></li>
-                <li>Copie a chave gerada e cole acima</li>
+        <div class="card-body">
+            <ol style="padding-left: 20px; color: var(--text-secondary); font-size: var(--text-sm);">
+                <li style="margin-bottom: 8px;">Acesse a interface web do ES-SERVIDOR</li>
+                <li style="margin-bottom: 8px;">Vá em <strong>Credentials → Local Users</strong></li>
+                <li style="margin-bottom: 8px;">Clique no usuário desejado</li>
+                <li style="margin-bottom: 8px;">Em <strong>API Keys</strong>, clique em <strong>Add</strong></li>
+                <li style="margin-bottom: 8px;">Dê um nome (ex: "Intranet") e copie a chave gerada</li>
+                <li>Cole a chave no campo acima</li>
             </ol>
         </div>
-
-        <div class="form-group">
-            <label for="full_name" class="form-label">Nome Completo</label>
-            <input type="text" id="full_name" name="full_name" class="form-control"
-                value="{{ user.full_name if user else '' }}" placeholder="Ex: João da Silva">
-            <small class="form-text">Opcional. Se não informado, será buscado do TrueNAS.</small>
-        </div>
-
-        <div class="form-group">
-            <label for="notes" class="form-label">Notas (uso interno)</label>
-            <textarea id="notes" name="notes" class="form-control" rows="3"
-                placeholder="Observações sobre o usuário (opcional)">{{ user.notes if user else '' }}</textarea>
-        </div>
-
-        {% if user %}
-        <div class="form-group">
-            <label class="form-label">
-                <input type="checkbox" name="is_active" {% if user.is_active %}checked{% endif %}>
-                Usuário ativo (pode fazer login)
-            </label>
-        </div>
-        {% endif %}
-
-        <div class="form-actions">
-            <button type="submit" class="btn btn-primary">
-                {{ '💾 Salvar Alterações' if user else '➕ Cadastrar Usuário' }}
-            </button>
-            <a href="{{ url_for('admin.users_list') }}" class="btn btn-outline">Cancelar</a>
-        </div>
-    </form>
+    </div>
 </div>
-
-<script>
-    function toggleApiHelp() {
-        const help = document.getElementById('apiHelp');
-        help.style.display = help.style.display === 'none' ? 'block' : 'none';
-    }
-</script>
-
-<style>
-    .admin-header {
-        margin-bottom: 1.5rem;
-        padding-bottom: 1rem;
-        border-bottom: 1px solid var(--border);
-    }
-
-    .admin-header h1 {
-        margin: 0;
-        font-size: 1.75rem;
-    }
-
-    .admin-header p {
-        margin: 0.25rem 0 0;
-        color: var(--text-muted);
-    }
-
-    .admin-nav {
-        display: flex;
-        gap: 0.5rem;
-        margin-bottom: 1.5rem;
-        padding: 0.5rem;
-        background: var(--bg-secondary);
-        border-radius: var(--border-radius);
-    }
-
-    .admin-nav-item {
-        padding: 0.5rem 1rem;
-        border-radius: 6px;
-        color: var(--text-secondary);
-        text-decoration: none;
-        font-weight: 500;
-        transition: all 0.2s;
-    }
-
-    .admin-nav-item:hover {
-        background: var(--bg-tertiary);
-        color: var(--text-primary);
-    }
-
-    .admin-nav-item.active {
-        background: var(--primary);
-        color: white;
-    }
-
-    .form-card {
-        background: white;
-        border-radius: var(--border-radius);
-        padding: 2rem;
-        box-shadow: var(--shadow-sm);
-        max-width: 600px;
-    }
-
-    .form-group {
-        margin-bottom: 1.5rem;
-    }
-
-    .form-label {
-        display: block;
-        margin-bottom: 0.5rem;
-        font-weight: 500;
-    }
-
-    .form-control {
-        width: 100%;
-        padding: 0.75rem;
-        border: 1px solid var(--border);
-        border-radius: 6px;
-        font-size: 1rem;
-    }
-
-    .form-control:focus {
-        outline: none;
-        border-color: var(--primary);
-        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
-    }
-
-    .form-control[readonly] {
-        background: var(--bg-secondary);
-        cursor: not-allowed;
-    }
-
-    textarea.form-control {
-        resize: vertical;
-    }
-
-    .form-text {
-        display: block;
-        margin-top: 0.25rem;
-        font-size: 0.875rem;
-        color: var(--text-muted);
-    }
-
-    .form-text a {
-        color: var(--primary);
-    }
-
-    .form-actions {
-        display: flex;
-        gap: 1rem;
-        margin-top: 2rem;
-    }
-</style>
 {% endblock %}

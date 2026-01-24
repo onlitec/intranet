@@ -6,15 +6,15 @@
 <div class="admin-container">
     <h2 class="page-title">Painel Administrativo</h2>
 
-    <!-- Status do TrueNAS -->
+    <!-- Status do ES-SERVIDOR -->
     <div class="admin-section">
         <h3 class="section-title">Status da Conexão</h3>
         <div class="status-card">
             <div class="status-info">
                 <div class="status-row">
-                    <span class="status-label">TrueNAS:</span>
+                    <span class="status-label">ES-SERVIDOR:</span>
                     <span class="status-value">
-                        {% if truenas_status %}
+                        {% if esservidor_status %}
                         <span class="badge badge-success">
                             <span class="status-dot status-online"></span>
                             Online
@@ -29,11 +29,11 @@
                 </div>
                 <div class="status-row">
                     <span class="status-label">Endereço IP:</span>
-                    <span class="status-value">{{ truenas_ip }}</span>
+                    <span class="status-value">{{ esservidor_ip }}</span>
                 </div>
                 <div class="status-row">
                     <span class="status-label">API URL:</span>
-                    <span class="status-value"><code>http://{{ truenas_ip }}/api/v2.0</code></span>
+                    <span class="status-value"><code>http://{{ esservidor_ip }}/api/v2.0</code></span>
                 </div>
             </div>
 
@@ -86,11 +86,11 @@
         fetch('/api/status')
             .then(response => response.json())
             .then(data => {
-                if (data.truenas_connection) {
+                if (data.esservidor_connection) {
                     resultDiv.innerHTML = '✓ Conexão estabelecida com sucesso!';
                     resultDiv.className = 'test-result test-success';
                 } else {
-                    resultDiv.innerHTML = '✕ Falha na conexão com TrueNAS';
+                    resultDiv.innerHTML = '✕ Falha na conexão com ES-SERVIDOR';
                     resultDiv.className = 'test-result test-error';
                 }
 

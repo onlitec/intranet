@@ -1,25 +1,25 @@
 ```
-Crie uma aplicação web completa de intranet integrada com TrueNAS Scale via API REST com as seguintes especificações:
+Crie uma aplicação web completa de intranet integrada com ES-SERVIDOR Scale via API REST com as seguintes especificações:
 
 ## Contexto
 - Aplicação Flask para intranet corporativa
 - Hospedada em container LXC Ubuntu/Debian no Proxmox
 - Até 10 usuários
-- Integração COMPLETA com TrueNAS Scale API v2.0
-- Objetivo: Sistema de login validado contra TrueNAS + download de script .bat para mapear drives de rede
+- Integração COMPLETA com ES-SERVIDOR Scale API v2.0
+- Objetivo: Sistema de login validado contra ES-SERVIDOR + download de script .bat para mapear drives de rede
 
 ## Arquitetura de Integração
 
-### Conexão com TrueNAS API
-- Endpoint base: http://IP_TRUENAS/api/v2.0
-- Autenticação via API Key (gerada no TrueNAS)
+### Conexão com ES-SERVIDOR API
+- Endpoint base: http://IP_ESSERVIDOR/api/v2.0
+- Autenticação via API Key (gerada no ES-SERVIDOR)
 - Biblioteca: requests
 - Timeout: 10 segundos para chamadas API
 - Tratamento completo de erros de conexão
 
 ### Fluxo de Autenticação
 1. Usuário insere credenciais na intranet
-2. Aplicação valida credenciais via API TrueNAS: POST /user/check_password
+2. Aplicação valida credenciais via API ES-SERVIDOR: POST /user/check_password
 3. Se válido, busca informações do usuário: GET /user?username=XXX
 4. Busca compartilhamentos SMB disponíveis: GET /sharing/smb
 5. Cruza permissões do usuário com compartilhamentos
@@ -28,12 +28,12 @@ Crie uma aplicação web completa de intranet integrada com TrueNAS Scale via AP
 ## Requisitos Funcionais
 
 ### 1. Sistema de Autenticação Integrado
-- Login valida DIRETAMENTE no TrueNAS via API
+- Login valida DIRETAMENTE no ES-SERVIDOR via API
 - Não armazena senhas localmente (apenas cache temporário de sessão)
 - Sessão expira em 8 horas
 - Logout limpa sessão
 
-### 2. Endpoints da API TrueNAS a utilizar
+### 2. Endpoints da API ES-SERVIDOR a utilizar
 
 #### Validar Credenciais:
 ```
@@ -79,19 +79,19 @@ Response: {ACL completo com usuários/grupos autorizados}
 
 Arquivo config.py:
 ```python
-TRUENAS_IP = "192.168.1.100"
-TRUENAS_API_URL = f"http://{TRUENAS_IP}/api/v2.0"
-TRUENAS_API_KEY = "1-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"  # Gerada no TrueNAS
+ESSERVIDOR_IP = "192.168.1.100"
+ESSERVIDOR_API_URL = f"http://{ESSERVIDOR_IP}/api/v2.0"
+ESSERVIDOR_API_KEY = "1-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"  # Gerada no ES-SERVIDOR
 SESSION_TIMEOUT = 28800  # 8 horas em segundos
 FLASK_SECRET_KEY = "chave-aleatoria-segura"
 ```
 
-### 4. Módulo de API TrueNAS (truenas_api.py)
+### 4. Módulo de API ES-SERVIDOR (truenas_api.py)
 
-Criar classe TrueNASAPI com métodos:
+Criar classe ES-SERVIDORAPI com métodos:
 
 ```python
-class TrueNASAPI:
+class ES-SERVIDORAPI:
     def __init__(self, base_url, api_key):
         # Inicializar conexão
         
@@ -113,17 +113,17 @@ class TrueNASAPI:
         
     def check_connection(self):
         # GET /system/info (health check)
-        # Retorna: True se TrueNAS está acessível
+        # Retorna: True se ES-SERVIDOR está acessível
 ```
 
 ### 5. Funcionalidades da Aplicação
 
 #### Página de Login (/)
 - Formulário username + password
-- Validação em tempo real via API TrueNAS
+- Validação em tempo real via API ES-SERVIDOR
 - Mensagens de erro específicas:
   - "Credenciais inválidas"
-  - "TrueNAS inacessível - contate o administrador"
+  - "ES-SERVIDOR inacessível - contate o administrador"
   - "Erro de conexão"
 - Spinner de loading durante validação
 
@@ -137,8 +137,8 @@ class TrueNASAPI:
 
 #### Geração de Script BAT (/download_bat)
 - Gera .bat personalizado com:
-  - Username do TrueNAS
-  - IP do TrueNAS (da config)
+  - Username do ES-SERVIDOR
+  - IP do ES-SERVIDOR (da config)
   - Shares que o usuário TEM PERMISSÃO (da API)
   - Letras de drive configuráveis
 - Script pede senha ao executar (segurança)
@@ -155,13 +155,13 @@ echo ========================================
 echo.
 
 REM Obter senha do usuario
-set /p SENHA="Digite sua senha do TrueNAS: "
+set /p SENHA="Digite sua senha do ES-SERVIDOR: "
 echo.
 
 REM Mapear cada share
 echo Mapeando {SHARE_NAME} em {LETRA}:...
 net use {LETRA}: /delete /yes 2>nul
-net use {LETRA}: \\{TRUENAS_IP}\{SHARE_NAME} /user:{USERNAME} %SENHA% /persistent:yes
+net use {LETRA}: \\{ESSERVIDOR_IP}\{SHARE_NAME} /user:{USERNAME} %SENHA% /persistent:yes
 
 if %errorlevel% equ 0 (
     echo [OK] {SHARE_NAME} mapeado com sucesso!
@@ -182,7 +182,7 @@ pause
 ### 6. Tratamento de Erros
 
 Implementar tratamento para:
-- TrueNAS offline/inacessível
+- ES-SERVIDOR offline/inacessível
 - API Key inválida
 - Timeout de requisições
 - Usuário sem permissões em nenhum share
@@ -220,7 +220,7 @@ Registrar em /var/log/intranet/:
 - Logins bem-sucedidos/falhos
 - Downloads de scripts .bat
 - Erros de API
-- Status de conexão com TrueNAS
+- Status de conexão com ES-SERVIDOR
 
 Formato: `[TIMESTAMP] [LEVEL] [IP] [USER] Mensagem`
 
@@ -270,7 +270,7 @@ werkzeug==3.0.1
 ### 2. Service Systemd (intranet.service)
 ```ini
 [Unit]
-Description=Intranet TrueNAS Integration
+Description=Intranet ES-SERVIDOR Integration
 After=network.target
 
 [Service]
@@ -299,11 +299,11 @@ server {
 }
 ```
 
-## Como Gerar API Key no TrueNAS
+## Como Gerar API Key no ES-SERVIDOR
 
 Incluir instruções comentadas no código:
 ```
-1. Acessar TrueNAS Web UI
+1. Acessar ES-SERVIDOR Web UI
 2. System Settings → Advanced → API Keys
 3. Add → Nome: "Intranet" → Generate Key
 4. Copiar a chave e adicionar no arquivo .env
@@ -313,7 +313,7 @@ Incluir instruções comentadas no código:
 
 Script setup.py para primeira execução:
 ```python
-# Testa conexão com TrueNAS
+# Testa conexão com ES-SERVIDOR
 # Valida API Key
 # Cria estrutura de diretórios
 # Gera secret key aleatória
@@ -322,7 +322,7 @@ Script setup.py para primeira execução:
 
 ## Extras
 
-- Health check endpoint: /api/status (retorna status da conexão com TrueNAS)
+- Health check endpoint: /api/status (retorna status da conexão com ES-SERVIDOR)
 - Página de administração: /admin (verificar conexão, testar API, ver logs)
 - Download de logs: /admin/logs
 - Documentação inline: comentários explicativos em cada função
@@ -330,25 +330,25 @@ Script setup.py para primeira execução:
 
 ## Requisitos de Rede
 
-- Aplicação precisa acessar TrueNAS na porta 80 (HTTP API)
+- Aplicação precisa acessar ES-SERVIDOR na porta 80 (HTTP API)
 - Clientes Windows precisam acessar aplicação na porta 80/443
-- Clientes Windows precisam acessar TrueNAS na porta 445 (SMB)
+- Clientes Windows precisam acessar ES-SERVIDOR na porta 445 (SMB)
 
 ## Tratamento de Casos Especiais
 
 1. Usuário sem permissão em nenhum share: exibir mensagem amigável
-2. TrueNAS em manutenção: página de status
-3. Mudança de senha no TrueNAS: próximo login detecta e re-valida
+2. ES-SERVIDOR em manutenção: página de status
+3. Mudança de senha no ES-SERVIDOR: próximo login detecta e re-valida
 4. Share desabilitado: não aparecer na lista
 5. Múltiplos grupos: agregar permissões de todos os grupos
 
-Gere todos os arquivos completos, funcionais e prontos para produção, com comentários detalhados explicando a integração com a API do TrueNAS.
+Gere todos os arquivos completos, funcionais e prontos para produção, com comentários detalhados explicando a integração com a API do ES-SERVIDOR.
 ```
 
-Esse prompt está completo e detalhado para criar uma solução **profissional e totalmente integrada** com o TrueNAS! 🚀
+Esse prompt está completo e detalhado para criar uma solução **profissional e totalmente integrada** com o ES-SERVIDOR! 🚀
 
 Cole na sua IDE Antigravity e ela vai gerar tudo. Depois me avise se precisar de ajuda para:
-- Gerar a API Key no TrueNAS
+- Gerar a API Key no ES-SERVIDOR
 - Configurar o nginx
 - Testar a integração
 - Resolver algum erro específico

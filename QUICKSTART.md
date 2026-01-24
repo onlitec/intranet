@@ -1,4 +1,4 @@
-# 🚀 Guia Rápido de Início - Intranet TrueNAS (ATUALIZADO)
+# 🚀 Guia Rápido de Início - Intranet ES-SERVIDOR (ATUALIZADO)
 
 ## Teste em Modo Desenvolvimento (Servidor Linux)
 
@@ -34,10 +34,10 @@ python3 setup.py
 ```
 
 Você será solicitado a informar:
-- **IP do TrueNAS**: Por exemplo `192.168.1.100`
-- **API Key do TrueNAS**: Gerada em System Settings → Advanced → API Keys
+- **IP do ES-SERVIDOR**: Por exemplo `192.168.1.100`
+- **API Key do ES-SERVIDOR**: Gerada em System Settings → Advanced → API Keys
 
-> **📝 Nota**: O setup testará automaticamente a conexão com o TrueNAS
+> **📝 Nota**: O setup testará automaticamente a conexão com o ES-SERVIDOR
 
 ### 5. Iniciar Aplicação
 
@@ -48,9 +48,9 @@ python3 app.py
 Você verá algo como:
 
 ```
-[INFO] Iniciando aplicação Intranet TrueNAS
-[INFO] TrueNAS URL: http://192.168.1.100/api/v2.0
-[INFO] ✓ Conexão com TrueNAS estabelecida
+[INFO] Iniciando aplicação Intranet ES-SERVIDOR
+[INFO] ES-SERVIDOR URL: http://192.168.1.100/api/v2.0
+[INFO] ✓ Conexão com ES-SERVIDOR estabelecida
  * Running on http://0.0.0.0:5000
 ```
 
@@ -60,7 +60,7 @@ Abra seu navegador em: **http://localhost:5000** ou **http://<IP-do-servidor>:50
 
 ### 7. Testar Login
 
-Faça login com as credenciais de um usuário do TrueNAS.
+Faça login com as credenciais de um usuário do ES-SERVIDOR.
 
 ---
 
@@ -92,7 +92,7 @@ python3 app.py
 
 - Container LXC Ubuntu/Debian no Proxmox
 - Acesso root ao container
-- Acesso de rede ao TrueNAS
+- Acesso de rede ao ES-SERVIDOR
 
 ### Passos
 
@@ -161,14 +161,14 @@ source venv/bin/activate
 python3 app.py
 ```
 
-### Erro "TrueNAS inacessível"
+### Erro "ES-SERVIDOR inacessível"
 
 ```bash
 # Testar conectividade
-ping <IP-do-TrueNAS>
+ping <IP-do-ES-SERVIDOR>
 
 # Testar API
-curl http://<IP-do-TrueNAS>/api/v2.0/system/info
+curl http://<IP-do-ES-SERVIDOR>/api/v2.0/system/info
 
 # Verificar .env
 cat .env
@@ -176,12 +176,12 @@ cat .env
 
 ### API Key inválida
 
-1. Gere nova API Key no TrueNAS
+1. Gere nova API Key no ES-SERVIDOR
 2. Edite o `.env`:
    ```bash
    nano .env
    ```
-3. Atualize `TRUENAS_API_KEY`
+3. Atualize `ESSERVIDOR_API_KEY`
 4. Reinicie:
    ```bash
    # Se em produção
@@ -243,9 +243,9 @@ sudo netstat -tulpn | grep 5000
 
 1. ✅ **Instalar dependências do sistema** (`python3-venv`, `python3-pip`)
 2. ✅ **Criar ambiente virtual** e instalar pacotes Python
-3. ✅ **Executar setup** e configurar TrueNAS
+3. ✅ **Executar setup** e configurar ES-SERVIDOR
 4. ✅ **Iniciar aplicação** em modo desenvolvimento
-5. ✅ **Validar login** com usuário do TrueNAS
+5. ✅ **Validar login** com usuário do ES-SERVIDOR
 6. ✅ **Baixar script .bat** e testar em máquina Windows
 7. ✅ **Verificar painel admin** em `/admin`
 8. 🔒 **Configurar HTTPS** (ver README.md seção SSL)

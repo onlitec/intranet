@@ -1,5 +1,5 @@
 """
-Aplicação Flask Principal - Intranet TrueNAS v2.0
+Aplicação Flask Principal - Intranet ES-SERVIDOR v2.0
 Sistema de autenticação com gestão de usuários e banco de dados
 """
 from flask import Flask, render_template, request, redirect, url_for, session, flash, send_file, jsonify
@@ -11,8 +11,8 @@ from datetime import datetime, timedelta
 from io import BytesIO
 
 import config
-from truenas_api import TrueNASAPI
-from models import db, AdminUser, TrueNASUser, AccessLog, init_db
+from esservidor_api import ESSERVIDORAPI
+from models import db, AdminUser, ESSERVIDORUser, AccessLog, init_db
 from database import init_crypto, decrypt_api_key
 from admin import admin_bp
 
@@ -66,10 +66,10 @@ if config.FLASK_DEBUG:
     console_handler.setFormatter(logging.Formatter('[%(levelname)s] %(message)s'))
     app.logger.addHandler(console_handler)
 
-# Inicializar cliente TrueNAS API (para operações administrativas)
-truenas = TrueNASAPI(
-    base_url=config.TRUENAS_API_URL,
-    api_key=config.TRUENAS_API_KEY,
+# Inicializar cliente ES-SERVIDOR API (para operações administrativas)
+esservidor = ESSERVIDORAPI(
+    base_url=config.ESSERVIDOR_API_URL,
+    api_key=config.ESSERVIDOR_API_KEY,
     timeout=config.API_TIMEOUT
 )
 
@@ -122,7 +122,7 @@ def home():
 
 @app.route('/usuario', methods=['GET', 'POST'])
 def user_login():
-    """Página de login para usuários TrueNAS cadastrados"""
+    """Página de login para usuários ES-SERVIDOR cadastrados"""
     
     # Se já estiver logado, redireciona para dashboard
     if current_user.is_authenticated:
@@ -140,7 +140,7 @@ def user_login():
         app.logger.info(f"Tentativa de login: {username}")
         
         # Buscar usuário no banco de dados
-        db_user = TrueNASUser.query.filter_by(username=username).first()
+        db_user = ESSERVIDORUser.query.filter_by(username=username).first()
         
         if not db_user:
             app.logger.warning(f"Usuário não cadastrado: {username}")
@@ -175,19 +175,19 @@ def user_login():
             flash('Erro interno. Contate o administrador.', 'error')
             return render_template('user_login.html')
         
-        # Validar API Key no TrueNAS (opcional, para garantir que ainda é válida)
-        valid, error = truenas.validate_user_with_api_key(username, stored_api_key)
+        # Validar API Key no ES-SERVIDOR (opcional, para garantir que ainda é válida)
+        valid, error = esservidor.validate_user_with_api_key(username, stored_api_key)
         
         if not valid:
-            app.logger.warning(f"API Key inválida no TrueNAS: {username} - {error}")
+            app.logger.warning(f"API Key inválida no ES-SERVIDOR: {username} - {error}")
             AccessLog.log_action(username, 'login', request.remote_addr,
                                request.user_agent.string[:255] if request.user_agent else None,
-                               success=False, user_id=db_user.id, details=f'TrueNAS: {error}')
-            flash('Erro de conexão com TrueNAS. Contate o administrador.', 'error')
+                               success=False, user_id=db_user.id, details=f'ES-SERVIDOR: {error}')
+            flash('Erro de conexão com ES-SERVIDOR. Contate o administrador.', 'error')
             return render_template('user_login.html')
         
-        # Obter informações do usuário do TrueNAS
-        success, user_info = truenas.get_user_info(username, stored_api_key)
+        # Obter informações do usuário do ES-SERVIDOR
+        success, user_info = esservidor.get_user_info(username, stored_api_key)
         
         if not success:
             user_info = {'full_name': db_user.full_name, 'username': username}
@@ -244,15 +244,15 @@ def dashboard():
         flash('Sessão inválida. Por favor, faça login novamente.', 'error')
         return redirect(url_for('do_logout'))
     
-    # Criar um TrueNASAPI temporário com a API Key do usuário
-    user_truenas = TrueNASAPI(
-        base_url=config.TRUENAS_API_URL,
+    # Criar um ESSERVIDORAPI temporário com a API Key do usuário
+    user_esservidor = ESSERVIDORAPI(
+        base_url=config.ESSERVIDOR_API_URL,
         api_key=user_api_key,
         timeout=config.API_TIMEOUT
     )
     
     # Obter compartilhamentos acessíveis ao usuário
-    success, shares = user_truenas.get_user_accessible_shares(current_user.username)
+    success, shares = user_esservidor.get_user_accessible_shares(current_user.username)
     
     if not success:
         app.logger.error(f"Erro ao carregar shares para {current_user.username}: {shares}")
@@ -280,22 +280,22 @@ def download_bat():
         flash('Sessão inválida. Por favor, faça login novamente.', 'error')
         return redirect(url_for('do_logout'))
     
-    # Criar cliente TrueNAS com API Key do usuário
-    user_truenas = TrueNASAPI(
-        base_url=config.TRUENAS_API_URL,
+    # Criar cliente ES-SERVIDOR com API Key do usuário
+    user_esservidor = ESSERVIDORAPI(
+        base_url=config.ESSERVIDOR_API_URL,
         api_key=user_api_key,
         timeout=config.API_TIMEOUT
     )
     
     # Obter compartilhamentos do usuário
-    success, shares = user_truenas.get_user_accessible_shares(current_user.username)
+    success, shares = user_esservidor.get_user_accessible_shares(current_user.username)
     
     if not success or len(shares) == 0:
         flash('Não há compartilhamentos disponíveis para mapear.', 'error')
         return redirect(url_for('dashboard'))
     
-    # Usar IP do TrueNAS (mais confiável - não depende de DNS)
-    server_name = config.TRUENAS_IP
+    # Usar IP do ES-SERVIDOR (mais confiável - não depende de DNS)
+    server_name = config.ESSERVIDOR_IP
     
     # Gerar conteúdo do script .bat usando IP
     bat_content = generate_bat_script(current_user.username, shares, server_name)
@@ -329,10 +329,10 @@ def generate_bat_script(username: str, shares: list, server_name: str = None) ->
     Args:
         username: Nome do usuário
         shares: Lista de compartilhamentos
-        server_name: Nome do servidor (hostname ou IP). Se None, usa config.TRUENAS_IP
+        server_name: Nome do servidor (hostname ou IP). Se None, usa config.ESSERVIDOR_IP
     """
     # Usar hostname se disponível, senão usa IP
-    server = server_name if server_name else config.TRUENAS_IP
+    server = server_name if server_name else config.ESSERVIDOR_IP
     
     lines = [
         '@echo off',
@@ -346,7 +346,7 @@ def generate_bat_script(username: str, shares: list, server_name: str = None) ->
         'echo.',
         '',
         'REM Obter senha do usuario',
-        'set /p SENHA="Digite sua senha do TrueNAS: "',
+        'set /p SENHA="Digite sua senha do ES-SERVIDOR: "',
         'echo.',
         ''
     ]
@@ -408,12 +408,12 @@ def do_logout():
 def api_status():
     """Endpoint de status/health check"""
     
-    truenas_connected = truenas.check_connection()
+    esservidor_connected = esservidor.check_connection()
     
     status = {
-        'status': 'ok' if truenas_connected else 'degraded',
-        'truenas_connection': truenas_connected,
-        'truenas_ip': config.TRUENAS_IP,
+        'status': 'ok' if esservidor_connected else 'degraded',
+        'esservidor_connection': esservidor_connected,
+        'esservidor_ip': config.ESSERVIDOR_IP,
         'timestamp': datetime.now().isoformat()
     }
     
@@ -438,20 +438,20 @@ def internal_error(error):
 
 
 if __name__ == '__main__':
-    # Verificar conexão com TrueNAS na inicialização
-    app.logger.info("Iniciando aplicação Intranet TrueNAS v2.0")
-    app.logger.info(f"TrueNAS URL: {config.TRUENAS_API_URL}")
+    # Verificar conexão com ES-SERVIDOR na inicialização
+    app.logger.info("Iniciando aplicação Intranet ES-SERVIDOR v2.0")
+    app.logger.info(f"ES-SERVIDOR URL: {config.ESSERVIDOR_API_URL}")
     
     with app.app_context():
         # Verificar se existe admin padrão
         admin_count = AdminUser.query.count()
-        user_count = TrueNASUser.query.count()
-        app.logger.info(f"Banco de dados: {admin_count} admin(s), {user_count} usuário(s) TrueNAS")
+        user_count = ESSERVIDORUser.query.count()
+        app.logger.info(f"Banco de dados: {admin_count} admin(s), {user_count} usuário(s) ES-SERVIDOR")
     
-    if truenas.check_connection():
-        app.logger.info("✓ Conexão com TrueNAS estabelecida")
+    if esservidor.check_connection():
+        app.logger.info("✓ Conexão com ES-SERVIDOR estabelecida")
     else:
-        app.logger.warning("✗ Não foi possível conectar ao TrueNAS - verifique config")
+        app.logger.warning("✗ Não foi possível conectar ao ES-SERVIDOR - verifique config")
     
     app.logger.info("=" * 50)
     app.logger.info("  CREDENCIAIS ADMIN PADRÃO:")

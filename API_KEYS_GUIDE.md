@@ -1,11 +1,11 @@
-# 🔑 Guia de Configuração - API Keys do TrueNAS
+# 🔑 Guia de Configuração - API Keys do ES-SERVIDOR
 
 ## Para Usuários Finais
 
 ### Como Gerar Sua API Key
 
-1. **Acesse o TrueNAS**
-   - Abra o navegador e acesse: `http://172.20.120.23` (ou o IP do seu TrueNAS)
+1. **Acesse o ES-SERVIDOR**
+   - Abra o navegador e acesse: `http://172.20.120.23` (ou o IP do seu ES-SERVIDOR)
    - Faça login com suas credenciais normais
 
 2. **Navegue até API Keys**
@@ -25,7 +25,7 @@
 
 5. **Use na Intranet**
    - Acesse: `http://172.20.120.31:5000`
-   - Digite seu **usuário** do TrueNAS
+   - Digite seu **usuário** do ES-SERVIDOR
    - Cole sua **API Key** no segundo campo
    - Clique em **Entrar**
 
@@ -39,7 +39,7 @@
 
 **Erro: "API Key inválida ou expirada"**
 - Verifique se copiou a chave completa
-- Certifique-se de que a chave não foi revogada no TrueNAS
+- Certifique-se de que a chave não foi revogada no ES-SERVIDOR
 - Gere uma nova chave se necessário
 
 **Erro: "API Key não pertence a este usuário"**
@@ -47,17 +47,17 @@
 - Cada usuário deve gerar sua própria API Key
 - Verifique se está usando o username correto
 
-**Erro: "TrueNAS inacessível"**
+**Erro: "ES-SERVIDOR inacessível"**
 - Verifique a conexão de rede
-- Confirme que o TrueNAS está online
-- Teste acessando a interface web do TrueNAS
+- Confirme que o ES-SERVIDOR está online
+- Teste acessando a interface web do ES-SERVIDOR
 
 ## Para Administradores
 
 ### Gerenciamento de API Keys
 
 **Visualizar todas as API Keys:**
-1. TrueNAS Web UI → **Credentials** → **Local Users**
+1. ES-SERVIDOR Web UI → **Credentials** → **Local Users**
 2. Clique no usuário desejado
 3. Selecione **"User API Keys"**
 
@@ -83,7 +83,7 @@ Usuários individuais usam suas próprias API Keys para login.
 Se você tem muitos usuários, pode criar um script para gerar API Keys:
 
 ```bash
-# Conectar ao TrueNAS via shell SSH
+# Conectar ao ES-SERVIDOR via shell SSH
 ssh root@172.20.120.23
 
 # Criar API Key para um usuário
@@ -97,9 +97,9 @@ Isso retornará a API Key que você pode distribuir ao usuário.
 ✅ **Segurança**: Não expõe senhas de usuários
 ✅ **Controle**: Pode revogar acessos sem alterar senhas
 ✅ **Auditoria**: Cada key é rastreável
-✅ **Compatibilidade**: Método oficial do TrueNAS Scale 25.10+
+✅ **Compatibilidade**: Método oficial do ES-SERVIDOR Scale 25.10+
 
 ---
 
-**Documentação oficial TrueNAS:**
+**Documentação oficial ES-SERVIDOR:**
 https://www.truenas.com/docs/ scale/25.10/api/
