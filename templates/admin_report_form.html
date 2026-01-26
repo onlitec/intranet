@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block title %}{{ 'Editar' if schedule else 'Novo' }} Agendamento{% endblock %}
+{% block page_title %}{{ 'Editar' if schedule else 'Novo' }} Agendamento de Relatório{% endblock %}
+
+{% block content %}
+<div style="max-width: 600px;">
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">📅 {{ '✏️ Editar' if schedule else '➕ Configurações do' }} Relatório</h3>
+        </div>
+        <div class="card-body">
+            <form method="POST"
+                action="{{ url_for('admin.reports_edit', schedule_id=schedule.id) if schedule else url_for('admin.reports_new') }}">
+                <div class="form-group">
+                    <label for="name" class="form-label required">Nome do Relatório</label>
+                    <input type="text" id="name" name="name" class="form-control"
+                        value="{{ schedule.name if schedule else '' }}" placeholder="Ex: Relatório de Segurança Semanal"
+                        required>
+                </div>
+
+                <div class="form-group">
+                    <label for="frequency" class="form-label required">Frequência / Período</label>
+                    <select id="frequency" name="frequency" class="form-control" onchange="toggleCustomDays()" required>
+                        <option value="daily" {% if schedule and schedule.frequency=='daily' %}selected{% endif %}>
+                            Diário (Últimas 24h)</option>
+                        <option value="weekly" {% if not schedule or schedule.frequency=='weekly' %}selected{% endif %}>
+                            Semanal (Últimos 7 dias)</option>
+                        <option value="monthly" {% if schedule and schedule.frequency=='monthly' %}selected{% endif %}>
+                            Mensal (Últimos 30 dias)</option>
+                        <option value="custom" {% if schedule and schedule.frequency=='custom' %}selected{% endif %}>
+                            Personalizada (Definir dias)</option>
+                    </select>
+                </div>
+
+                <div class="form-group" id="customDaysGroup"
+                    style="display: {{ 'block' if schedule and schedule.frequency == 'custom' else 'none' }};">
+                    <label for="custom_days" class="form-label required">Quantidade de Dias</label>
+                    <input type="number" id="custom_days" name="custom_days" class="form-control"
+                        value="{{ schedule.custom_days or 1 }}" min="1">
+                    <small class="text-muted">O relatório incluirá atividades dos últimos X dias.</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="recipients" class="form-label required">Destinatários (E-mails)</label>
+                    <input type="text" id="recipients" name="recipients" class="form-control"
+                        value="{{ schedule.recipients if schedule else '' }}"
+                        placeholder="TI@empresa.com, admin@empresa.com" required>
+                    <small class="text-muted">Separe múltiplos e-mails por vírgula</small>
+                </div>
+
+                {% if schedule %}
+                <div class="form-group" style="margin-top: 16px;">
+                    <label class="checkbox-container">
+                        <input type="checkbox" name="is_active" {% if schedule.is_active %}checked{% endif %}>
+                        <span class="checkmark"></span>
+                        Agendamento Ativo
+                    </label>
+                </div>
+                {% endif %}
+
+                <div style="display: flex; gap: 12px; margin-top: 32px;">
+                    <button type="submit" class="btn btn-primary">💾 {{ 'Salvar Alterações' if schedule else 'Criar
+                        Agendamento' }}</button>
+                    <a href="{{ url_for('admin.report_schedules') }}" class="btn btn-secondary">Cancelar</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    function toggleCustomDays() {
+        const freq = document.getElementById('frequency').value;
+        const group = document.getElementById('customDaysGroup');
+        group.style.display = (freq === 'custom') ? 'block' : 'none';
+    }
+</script>
+{% endblock %}

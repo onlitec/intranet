@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+
+{% block title %}Agendamento de Relatórios{% endblock %}
+{% block page_title %}Agendamento de Relatórios{% endblock %}
+{% block page_subtitle %}<p class="topbar-subtitle">Gerencie os ciclos de envio automático de atividades do servidor</p>
+{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: flex-end; margin-bottom: 24px;">
+    <a href="{{ url_for('admin.reports_new') }}" class="btn btn-primary">
+        ➕ Novo Agendamento
+    </a>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">📅 Relatórios Agendados</h3>
+    </div>
+    <div class="card-body" style="padding: 0;">
+        {% if schedules %}
+        <div class="table-container">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Nome / Frequência</th>
+                        <th>Destinatários</th>
+                        <th>Próximo Envio</th>
+                        <th>Último Envio</th>
+                        <th>Status</th>
+                        <th style="text-align: center;">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in schedules %}
+                    <tr>
+                        <td>
+                            <strong>{{ s.name }}</strong>
+                            <div class="text-xs text-muted">{{ s.frequency | capitalize }}</div>
+                        </td>
+                        <td>{{ s.recipients }}</td>
+                        <td>{{ s.next_run.strftime('%d/%m/%Y %H:%M') if s.next_run else 'N/A' }}</td>
+                        <td>{{ s.last_run.strftime('%d/%m/%Y %H:%M') if s.last_run else 'Nunca' }}</td>
+                        <td>
+                            {% if s.is_active %}
+                            <span class="badge badge-success badge-dot">Ativo</span>
+                            {% else %}
+                            <span class="badge badge-error badge-dot">Pausado</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="table-actions" style="justify-content: center;">
+                                <button class="btn btn-ghost btn-sm" onclick="sendNow({{ s.id }})"
+                                    id="btn-now-{{ s.id }}">🚀 Enviar Agora</button>
+                                <a href="{{ url_for('admin.reports_edit', schedule_id=s.id) }}"
+                                    class="btn btn-ghost btn-sm">✏️ Editar</a>
+                                <form action="#" method="POST" style="display: inline;">
+                                    <button type="submit" class="btn btn-ghost btn-sm"
+                                        style="color: var(--error);">🗑️</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-state-icon">📋</div>
+            <h3 class="empty-state-title">Nenhum agendamento configurado</h3>
+            <p>Os relatórios automatizados ajudam a monitorar a segurança do servidor.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+    function sendNow(id) {
+        const btn = document.getElementById('btn-now-' + id);
+        const originalText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '⌛ Enviando...';
+
+        fetch(`/admin/reports/schedules/${id}/send-manual`, { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    if (window.IntranetApp && window.IntranetApp.showToast) {
+                        window.IntranetApp.showToast('Relatório enviado com sucesso!', 'success');
+                    } else {
+                        alert('Relatório enviado com sucesso!');
+                    }
+                } else {
+                    if (window.IntranetApp && window.IntranetApp.showToast) {
+                        window.IntranetApp.showToast('Erro: ' + data.message, 'error');
+                    } else {
+                        alert('Erro: ' + data.message);
+                    }
+                }
+            })
+            .catch(err => {
+                if (window.IntranetApp && window.IntranetApp.showToast) {
+                    window.IntranetApp.showToast('Erro na requisição.', 'error');
+                } else {
+                    alert('Erro na requisição.');
+                }
+            })
+            .finally(() => {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            });
+    }
+</script>
+{% endblock %}

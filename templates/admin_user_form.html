@@ -30,6 +30,15 @@
                 </div>
 
                 <div class="form-group">
+                    <label for="password" class="form-label {% if not user %}required{% endif %}">Senha da
+                        Intranet</label>
+                    <input type="password" id="password" name="password" class="form-control"
+                        placeholder="{% if user %}Deixe em branco para não alterar{% else %}Senha de acesso do usuário{% endif %}"
+                        {% if not user %}required{% endif %}>
+                    <p class="form-helper">Esta senha será usada para o usuário entrar NESTA plataforma.</p>
+                </div>
+
+                <div class="form-group">
                     <label for="api_key" class="form-label {% if not user %}required{% endif %}">
                         API Key do ES-SERVIDOR
                     </label>
@@ -38,6 +47,16 @@
                         {% if not user %}required{% endif %}>
                     <p class="form-helper">Chave gerada no ES-SERVIDOR (System Settings → API Keys)</p>
                 </div>
+
+                {% if user %}
+                <div class="form-group" style="margin-top: 16px;">
+                    <label class="checkbox-container">
+                        <input type="checkbox" name="is_active" {% if user.is_active %}checked{% endif %}>
+                        <span class="checkmark"></span>
+                        Usuário Ativo
+                    </label>
+                </div>
+                {% endif %}
 
                 <div style="display: flex; gap: 12px; margin-top: 32px;">
                     <button type="submit" class="btn btn-primary">

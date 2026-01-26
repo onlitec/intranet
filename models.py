@@ -18,6 +18,7 @@ class AdminUser(db.Model):
     password_hash = db.Column(db.String(255), nullable=False)
     full_name = db.Column(db.String(100), nullable=False)
     email = db.Column(db.String(100))
+    phone = db.Column(db.String(20))
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_login = db.Column(db.DateTime)
@@ -111,6 +112,59 @@ class AccessLog(db.Model):
         db.session.add(log)
         db.session.commit()
         return log
+
+
+class SMTPConfig(db.Model):
+    """Configuração do servidor de e-mail SMTP"""
+    __tablename__ = 'smtp_config'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    smtp_server = db.Column(db.String(100), nullable=False)
+    smtp_port = db.Column(db.Integer, default=587)
+    smtp_user = db.Column(db.String(100))
+    smtp_password_encrypted = db.Column(db.Text)
+    use_tls = db.Column(db.Boolean, default=True)
+    from_email = db.Column(db.String(100), nullable=False)
+    from_name = db.Column(db.String(100), default='ES-SERVIDOR Intranet')
+    
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def __repr__(self):
+        return f'<SMTPConfig {self.smtp_server}>'
+
+
+class ReportSchedule(db.Model):
+    """Agendamento de relatórios automáticos"""
+    __tablename__ = 'report_schedules'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    frequency = db.Column(db.String(20), nullable=False)  # daily, weekly, monthly, custom
+    custom_days = db.Column(db.Integer, default=0)
+    recipients = db.Column(db.Text, nullable=False)  # Lista separada por vírgula
+    is_active = db.Column(db.Boolean, default=True)
+    last_run = db.Column(db.DateTime)
+    next_run = db.Column(db.DateTime)
+    
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    def __repr__(self):
+        return f'<ReportSchedule {self.name} ({self.frequency})>'
+
+
+class ReportLog(db.Model):
+    """Log de envio de relatórios"""
+    __tablename__ = 'report_logs'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    schedule_id = db.Column(db.Integer, db.ForeignKey('report_schedules.id'), nullable=True)
+    recipient = db.Column(db.String(100))
+    status = db.Column(db.String(20))  # success, failure
+    error_message = db.Column(db.Text)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    def __repr__(self):
+        return f'<ReportLog to {self.recipient} at {self.timestamp}>'
 
 
 def init_db(app):

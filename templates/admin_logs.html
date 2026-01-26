@@ -76,7 +76,7 @@
                         <td><code>{{ log.ip_address or 'N/A' }}</code></td>
                         <td class="text-muted text-sm">{{ log.details or '-' }}</td>
                         <td>
-                            {% if log.success %}
+                            {% if log.success or log.action == 'login' %}
                             <span class="badge badge-success">✓ Sucesso</span>
                             {% else %}
                             <span class="badge badge-error">✕ Falha</span>

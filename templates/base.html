@@ -70,6 +70,11 @@
                     <span class="nav-icon">🔑</span>
                     <span>Usuários Intranet</span>
                 </a>
+                <a href="{{ url_for('admin.admins_list') }}"
+                    class="nav-item {% if request.endpoint in ['admin.admins_list', 'admin.admins_new', 'admin.admins_edit'] %}active{% endif %}">
+                    <span class="nav-icon">🔒</span>
+                    <span>Administradores</span>
+                </a>
             </div>
 
             <div class="nav-section">
@@ -83,6 +88,20 @@
                     class="nav-item {% if request.endpoint == 'admin.logs' %}active{% endif %}">
                     <span class="nav-icon">📋</span>
                     <span>Logs Internos</span>
+                </a>
+            </div>
+
+            <div class="nav-section">
+                <div class="nav-section-title">Configurações</div>
+                <a href="{{ url_for('admin.report_schedules') }}"
+                    class="nav-item {% if request.endpoint in ['admin.report_schedules', 'admin.reports_new'] %}active{% endif %}">
+                    <span class="nav-icon">📊</span>
+                    <span>Relatórios</span>
+                </a>
+                <a href="{{ url_for('admin.smtp_settings') }}"
+                    class="nav-item {% if request.endpoint == 'admin.smtp_settings' %}active{% endif %}">
+                    <span class="nav-icon">⚙️</span>
+                    <span>Servidor E-mail</span>
                 </a>
             </div>
 

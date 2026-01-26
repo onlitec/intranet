@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        /* Base Styles */
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f0f2f5;
+            color: #1a202c;
+        }
+
+        .wrapper {
+            width: 100%;
+            table-layout: fixed;
+            background-color: #f0f2f5;
+            padding: 30px 0;
+        }
+
+        .main {
+            background-color: #ffffff;
+            margin: 0 auto;
+            width: 100%;
+            max-width: 650px;
+            border-spacing: 0;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+        }
+
+        /* Header with more premium gradient and shadow */
+        .header {
+            background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+            padding: 45px 30px;
+            text-align: center;
+            color: #ffffff;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 30px;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .header p {
+            margin: 12px 0 0;
+            font-size: 16px;
+            opacity: 0.95;
+            font-weight: 400;
+        }
+
+        /* Content Area */
+        .section {
+            padding: 40px 35px;
+        }
+
+        .greeting {
+            font-size: 22px;
+            font-weight: 800;
+            color: #111827;
+            margin-bottom: 12px;
+        }
+
+        .intro-text {
+            font-size: 15px;
+            line-height: 1.6;
+            color: #4b5563;
+            margin-bottom: 35px;
+        }
+
+        /* Stats Cards with Borders */
+        .stats-container {
+            margin-bottom: 40px;
+            width: 100%;
+        }
+
+        .stat-card {
+            background-color: #ffffff;
+            border: 2px solid #f1f5f9;
+            border-radius: 12px;
+            padding: 24px 15px;
+            text-align: center;
+            display: inline-block;
+            width: 29%;
+            margin-right: 2%;
+            vertical-align: top;
+            box-sizing: border-box;
+        }
+
+        .stat-card:last-child {
+            margin-right: 0;
+        }
+
+        .stat-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: #6b7280;
+            margin-bottom: 8px;
+            font-weight: 700;
+        }
+
+        .stat-value {
+            font-size: 28px;
+            font-weight: 900;
+            color: #1f2937;
+        }
+
+        .stat-value.success {
+            color: #059669;
+        }
+
+        .stat-value.error {
+            color: #dc2626;
+        }
+
+        .stat-value.primary {
+            color: #2563eb;
+        }
+
+        /* Table Area with VISIBLE BORDERS */
+        .table-title {
+            font-size: 19px;
+            font-weight: 800;
+            color: #111827;
+            margin-bottom: 20px;
+            padding-left: 15px;
+            border-left: 5px solid #2563eb;
+        }
+
+        .logs-table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: #ffffff;
+            border: 1px solid #e2e8f0;
+            margin-bottom: 30px;
+        }
+
+        .logs-table th {
+            background-color: #f8fafc;
+            padding: 14px 15px;
+            text-align: left;
+            font-size: 12px;
+            font-weight: 800;
+            color: #334155;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .logs-table td {
+            padding: 14px 15px;
+            font-size: 14px;
+            color: #475569;
+            border: 1px solid #e2e8f0;
+        }
+
+        .logs-table tr:nth-child(even) {
+            background-color: #fafafa;
+        }
+
+        /* Status Badges */
+        .badge {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 800;
+            text-transform: uppercase;
+        }
+
+        .badge-success {
+            background-color: #ecfdf5;
+            color: #065f46;
+            border: 1px solid #a7f3d0;
+        }
+
+        .badge-error {
+            background-color: #fef2f2;
+            color: #991b1b;
+            border: 1px solid #fecaca;
+        }
+
+        /* Action Button */
+        .button-container {
+            text-align: center;
+            padding: 10px 0 45px;
+        }
+
+        .button {
+            background: #2563eb;
+            color: #ffffff !important;
+            padding: 16px 36px;
+            text-decoration: none;
+            border-radius: 10px;
+            font-weight: 800;
+            font-size: 16px;
+            display: inline-block;
+            transition: all 0.3s ease;
+            box-shadow: 0 6px 15px rgba(37, 99, 235, 0.25);
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding: 40px 20px;
+            font-size: 13px;
+            color: #64748b;
+        }
+
+        .footer b {
+            color: #334155;
+        }
+
+        /* Charts Styling */
+        .chart-table {
+            width: 100%;
+            margin-bottom: 30px;
+        }
+
+        .chart-label {
+            font-size: 13px;
+            font-weight: 600;
+            color: #4b5563;
+            padding-bottom: 5px;
+        }
+
+        .chart-bar-container {
+            background-color: #f1f5f9;
+            border-radius: 99px;
+            height: 8px;
+            width: 100%;
+            overflow: hidden;
+        }
+
+        .chart-bar {
+            height: 8px;
+            border-radius: 99px;
+        }
+
+        .chart-value {
+            font-size: 11px;
+            font-weight: 700;
+            color: #64748b;
+            text-align: right;
+        }
+
+        /* Responsive */
+        @media screen and (max-width: 600px) {
+            .stat-card {
+                width: 100% !important;
+                margin-right: 0 !important;
+                margin-bottom: 12px !important;
+            }
+
+            .section {
+                padding: 30px 20px !important;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="wrapper">
+        <center>
+            <table class="main" width="100%" border="0" cellpadding="0" cellspacing="0">
+                <tr>
+                    <td class="header">
+                        <h1>Atividades ES-SERVIDOR</h1>
+                        <p>{{ report_name }}</p>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="section">
+                        <div class="greeting">Olá Administrador,</div>
+                        <p class="intro-text">
+                            Aqui está o resumo executivo das atividades registradas no servidor <b>{{ server_info }}</b>
+                            entre <b>{{ start_date }}</b> e <b>{{ end_date }}</b>.
+                        </p>
+
+                        <div class="stats-container">
+                            <center>
+                                <!--[if mso]>
+                                <table role="presentation" width="100%"><tr><td width="33%" align="center" valign="top">
+                                <![endif]-->
+                                <div class="stat-card">
+                                    <div class="stat-label">Registros</div>
+                                    <div class="stat-value primary">{{ stats.total }}</div>
+                                </div>
+                                <!--[if mso]>
+                                </td><td width="33%" align="center" valign="top">
+                                <![endif]-->
+                                <div class="stat-card">
+                                    <div class="stat-label">Sucessos</div>
+                                    <div class="stat-value success">{{ stats.success }}</div>
+                                </div>
+                                <!--[if mso]>
+                                </td><td width="33%" align="center" valign="top">
+                                <![endif]-->
+                                <div class="stat-card">
+                                    <div class="stat-label">Eventos</div>
+                                    <div class="stat-value error">{{ stats.failure }}</div>
+                                </div>
+                                <!--[if mso]>
+                                </td></tr></table>
+                                <![endif]-->
+                            </center>
+                        </div>
+
+                        <!-- Gráfico 1: Atividade por Operação (Vertical Bars) -->
+                        <div class="table-title">📊 Atividade por Operação</div>
+                        <div
+                            style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-bottom: 30px;">
+                            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="height: 180px;">
+                                <tr>
+                                    <!-- Y-Axis Labels -->
+                                    <td width="35" valign="top" style="padding-right: 10px;">
+                                        <table height="150" width="100%" cellpadding="0" cellspacing="0" border="0"
+                                            style="font-size: 10px; color: #94a3b8; text-align: right;">
+                                            <tr>
+                                                <td valign="top" height="50">100%</td>
+                                            </tr>
+                                            <tr>
+                                                <td valign="middle" height="50">50%</td>
+                                            </tr>
+                                            <tr>
+                                                <td valign="bottom" height="50">0</td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                    <!-- Columns Container -->
+                                    <td valign="bottom"
+                                        style="border-left: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; height: 150px; background-color: #ffffff;">
+                                        <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                                            <tr>
+                                                {% for item in activity_stats %}
+                                                <td width="20%" valign="bottom" align="center" style="padding: 0 4px;">
+                                                    <div
+                                                        style="font-size: 10px; color: #64748b; margin-bottom: 4px; font-weight: bold;">
+                                                        {{ item.count }}</div>
+                                                    <!-- Calcula altura em pixels baseado no container de 150px -->
+                                                    {% set px_height = [ (item.pct * 1.5)|int, 3 ]|max %}
+                                                    <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                                                        <tr>
+                                                            <td bgcolor="{{ item.color }}" height="{{ px_height }}"
+                                                                style="height: {{ px_height }}px; border-radius: 4px 4px 0 0; line-height: 1px; font-size: 1px; border: 1px solid rgba(0,0,0,0.05);">
+                                                                &nbsp;</td>
+                                                        </tr>
+                                                    </table>
+                                                </td>
+                                                {% endfor %}
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td></td>
+                                    <td style="padding-top: 8px;">
+                                        <table width="100%" cellpadding="0" cellspacing="0" border="0"
+                                            style="font-size: 9px; font-weight: 600; color: #475569; text-align: center;">
+                                            <tr>
+                                                {% for item in activity_stats %}
+                                                <td width="20%">{{ item.label }}</td>
+                                                {% endfor %}
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+
+                        <!-- Gráfico 2: Uso por Pasta (Horizontal with Grid simulation) -->
+                        <div class="table-title">📁 Uso por Pasta (Top 5)</div>
+                        <div
+                            style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-bottom: 30px;">
+                            <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                                {% if folder_stats %}
+                                {% for item in folder_stats %}
+                                <tr>
+                                    <td width="35%"
+                                        style="font-size: 11px; font-weight: 600; color: #475569; padding-right: 15px; text-align: right; padding-bottom: 15px; word-break: break-all;">
+                                        {{ item.label }}
+                                    </td>
+                                    <td width="65%"
+                                        style="padding-bottom: 15px; position: relative; border-left: 1px solid #e2e8f0;">
+                                        <table width="100%" cellpadding="0" cellspacing="0" border="0"
+                                            style="background-color: #f8fafc; border-radius: 4px; height: 26px;">
+                                            <tr>
+                                                <td width="{{ item.pct }}%" bgcolor="#dbeafe"
+                                                    style="height: 26px; border-radius: 4px; border: 1px solid #3b82f6; border-right: 2px solid #3b82f6;">
+                                                    <div
+                                                        style="font-size: 10px; color: #1e40af; font-weight: 700; padding-left: 8px; line-height: 26px;">
+                                                        {{ item.count }}</div>
+                                                </td>
+                                                <td width="{{ 100 - item.pct }}%">&nbsp;</td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                                <!-- X-Axis Legend -->
+                                <tr>
+                                    <td></td>
+                                    <td style="border-top: 1px solid #e2e8f0; padding-top: 5px;">
+                                        <table width="100%" cellpadding="0" cellspacing="0" border="0"
+                                            style="font-size: 9px; color: #94a3b8;">
+                                            <tr>
+                                                <td width="25%" align="left">0</td>
+                                                <td width="25%" align="center">25%</td>
+                                                <td width="25%" align="center">50%</td>
+                                                <td width="25%" align="right">100%</td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td class="intro-text" style="font-style: italic; text-align: center;">Nenhuma
+                                        atividade em pastas registrada.</td>
+                                </tr>
+                                {% endif %}
+                            </table>
+                        </div>
+
+                        <div class="table-title">Últimas Atividades Detalhadas</div>
+                        <table class="logs-table">
+                            <thead>
+                                <tr>
+                                    <th width="15%">Usuário</th>
+                                    <th width="15%">Ação</th>
+                                    <th width="45%">Arquivo / Pasta</th>
+                                    <th width="10%">Status</th>
+                                    <th width="15%">Data</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for log in recent_logs %}
+                                <tr>
+                                    <td style="font-weight: 700; color: #1e293b;">{{ log.username }}</td>
+                                    <td>{{ log.action }}</td>
+                                    <td style="font-size: 13px; color: #475569; word-break: break-all;">
+                                        {{ log.path if log.path else 'N/A' }}
+                                    </td>
+                                    <td align="center">
+                                        {% if log.success %}
+                                        <span class="badge badge-success">OK</span>
+                                        {% else %}
+                                        <span class="badge badge-error">ERRO</span>
+                                        {% endif %}
+                                    </td>
+                                    <td style="font-size: 12px; white-space: nowrap;">{{
+                                        log.timestamp.strftime('%d/%m/%Y %H:%M') }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="button-container">
+                        <a href="http://{{ server_info }}/admin" class="button">Acessar Painel de Controle</a>
+                    </td>
+                </tr>
+            </table>
+
+            <div class="footer">
+                <p>Relatório gerado automaticamente pela <b>Intranet ES-SERVIDOR</b>.</p>
+                <p>Monitoramento <b>TrueNAS Scale Enterprise</b></p>
+                <p>&copy; 2026 ES-SERVIDOR</p>
+            </div>
+        </center>
+    </div>
+</body>
+
+</html>

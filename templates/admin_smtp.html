@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{% block title %}Configuração SMTP{% endblock %}
+{% block page_title %}Configuração de E-mail (SMTP){% endblock %}
+{% block page_subtitle %}<p class="topbar-subtitle">Configure o servidor de e-mail para envio automático de relatórios
+</p>{% endblock %}
+
+{% block content %}
+<div style="max-width: 700px;">
+    <!-- Connection Test Alert -->
+    <div id="test-result" style="display: none; margin-bottom: 24px;"></div>
+
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">📧 Servidor de Saída (SMTP)</h3>
+        </div>
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('admin.smtp_settings') }}" id="smtpForm">
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label for="smtp_server" class="form-label required">Servidor SMTP</label>
+                        <input type="text" id="smtp_server" name="smtp_server" class="form-control"
+                            value="{{ config.smtp_server if config else '' }}" placeholder="smtp.gmail.com" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="smtp_port" class="form-label required">Porta</label>
+                        <input type="number" id="smtp_port" name="smtp_port" class="form-control"
+                            value="{{ config.smtp_port if config else 587 }}" required>
+                    </div>
+                </div>
+
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label for="smtp_user" class="form-label">Usuário / E-mail</label>
+                        <input type="text" id="smtp_user" name="smtp_user" class="form-control"
+                            value="{{ config.smtp_user if config else '' }}" placeholder="exemplo@gmail.com">
+                    </div>
+                    <div class="form-group">
+                        <label for="smtp_password" class="form-label">Senha</label>
+                        <input type="password" id="smtp_password" name="smtp_password" class="form-control"
+                            placeholder="{% if config %}Deixe em branco para não alterar{% else %}Sua senha de e-mail{% endif %}">
+                    </div>
+                </div>
+
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label for="from_email" class="form-label required">E-mail de Origem (From)</label>
+                        <input type="email" id="from_email" name="from_email" class="form-control"
+                            value="{{ config.from_email if config else '' }}" placeholder="noreply@empresa.com"
+                            required>
+                    </div>
+                    <div class="form-group">
+                        <label for="from_name" class="form-label">Nome de Exibição</label>
+                        <input type="text" id="from_name" name="from_name" class="form-control"
+                            value="{{ config.from_name if config else 'ES-SERVIDOR Intranet' }}">
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-top: 16px;">
+                    <label class="checkbox-container">
+                        <input type="checkbox" name="use_tls" {% if not config or config.use_tls %}checked{% endif %}>
+                        <span class="checkmark"></span>
+                        Usar TLS (Recomendado)
+                    </label>
+                </div>
+
+                <div
+                    style="display: flex; gap: 12px; margin-top: 32px; border-top: 1px solid var(--border-color); padding-top: 24px;">
+                    <button type="submit" class="btn btn-primary">
+                        💾 Salvar Configurações
+                    </button>
+                    <button type="button" id="testConnBtn" class="btn btn-secondary">
+                        🧪 Testar Conexão
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.getElementById('testConnBtn').addEventListener('click', function () {
+        const btn = this;
+        const resultDiv = document.getElementById('test-result');
+        const form = document.getElementById('smtpForm');
+        const formData = new FormData(form);
+
+        btn.disabled = true;
+        btn.innerText = '⌛ Testando...';
+        resultDiv.style.display = 'none';
+
+        fetch('{{ url_for("admin.smtp_test") }}', {
+            method: 'POST',
+            body: formData
+        })
+            .then(r => r.json())
+            .then(data => {
+                resultDiv.style.display = 'block';
+                if (data.success) {
+                    resultDiv.innerHTML = `<div class="alert alert-success"><span class="alert-icon">✓</span><span class="alert-message">${data.message}</span></div>`;
+                } else {
+                    resultDiv.innerHTML = `<div class="alert alert-error"><span class="alert-icon">✕</span><span class="alert-message">Erro: ${data.message}</span></div>`;
+                }
+            })
+            .catch(err => {
+                resultDiv.style.display = 'block';
+                resultDiv.innerHTML = `<div class="alert alert-error"><span class="alert-icon">✕</span><span class="alert-message">Erro na requisição.</span></div>`;
+            })
+            .finally(() => {
+                btn.disabled = false;
+                btn.innerText = '🧪 Testar Conexão';
+            });
+    });
+</script>
+{% endblock %}

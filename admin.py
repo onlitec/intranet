@@ -3,9 +3,9 @@ Blueprint Administrativo - Intranet ES-SERVIDOR
 Rotas para gerenciamento de usuários e visualização de logs
 """
 from functools import wraps
-from datetime import datetime, timedelta
-from flask import Blueprint, render_template, request, redirect, url_for, flash, session, jsonify
-from models import db, AdminUser, ESSERVIDORUser, AccessLog
+from datetime import datetime, timedelta, timezone
+from flask import Blueprint, render_template, request, redirect, url_for, flash, session, jsonify, current_app
+from models import db, AdminUser, ESSERVIDORUser, AccessLog, SMTPConfig, ReportSchedule, ReportLog
 from database import encrypt_api_key, decrypt_api_key
 from esservidor_api import ESSERVIDORAPI
 from collections import Counter
@@ -70,7 +70,7 @@ def login():
     return render_template('admin_login.html')
 
 
-@admin_bp.route('/logout')
+@admin_bp.route('/logout', methods=['GET', 'POST'])
 def logout():
     """Logout do administrador"""
     session.pop('admin_id', None)
@@ -131,8 +131,8 @@ def dashboard():
             # --- DADOS PARA O GRÁFICO ---
             _, audit_data = esservidor.get_audit_logs(limit=1000)
             chart_data = {
-                'labels': ['Acessos', 'Edições', 'Criações', 'Deleções'],
-                'action_counts': [0, 0, 0, 0],
+                'labels': ['Acessos', 'Edições', 'Criações', 'Deletados', 'Negados'],
+                'action_counts': [0, 0, 0, 0, 0],
                 'folders': [],
                 'counts': []
             }
@@ -145,6 +145,7 @@ def dashboard():
                     elif 'Editou' in action: chart_data['action_counts'][1] += 1
                     elif 'Criou' in action: chart_data['action_counts'][2] += 1
                     elif 'Deletou' in action: chart_data['action_counts'][3] += 1
+                    elif 'Acesso Negado' in action: chart_data['action_counts'][4] += 1
                     
                     raw_path = log.get('path', '')
                     if raw_path and raw_path != 'N/A':
@@ -599,6 +600,25 @@ def server_users():
     if not groups_success:
         flash(f'Erro ao carregar grupos: {groups}', 'error')
         groups = []
+        
+    # Criar um mapeamento de GID -> Nome do Grupo
+    group_map = {g.get('id'): g.get('name') for g in groups}
+    
+    # Processar usuários para garantir que grupos mostrem nomes em vez de IDs
+    for user in users:
+        formatted_groups = []
+        # user.get('groups') pode vir com nomes se o API conseguiu processar, 
+        # ou IDs se vieram puros. Vamos garantir que usemos nomes.
+        current_groups = user.get('group_ids', [])
+        for gid in current_groups:
+            name = group_map.get(gid)
+            if name:
+                formatted_groups.append(name)
+            else:
+                formatted_groups.append(str(gid))
+        
+        if formatted_groups:
+            user['groups'] = formatted_groups
     
     # Filtrar usuários builtin (sistema) se desejado
     show_builtin = request.args.get('show_builtin', 'false').lower() == 'true'
@@ -620,3 +640,511 @@ def server_users():
                          groups=groups,
                          stats=stats,
                          show_builtin=show_builtin)
+
+
+# ==================== GESTÃO DE ADMINISTRADORES ====================
+
+@admin_bp.route('/admins')
+@admin_required
+def admins_list():
+    """Lista de usuários administradores da intranet"""
+    admins = AdminUser.query.order_by(AdminUser.created_at.desc()).all()
+    return render_template('admin_admins.html', admins=admins, admin=get_current_admin())
+
+
+@admin_bp.route('/admins/new', methods=['GET', 'POST'])
+@admin_required
+def admins_new():
+    """Cadastrar novo administrador"""
+    admin = get_current_admin()
+    
+    if request.method == 'POST':
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '').strip()
+        full_name = request.form.get('full_name', '').strip()
+        email = request.form.get('email', '').strip()
+        phone = request.form.get('phone', '').strip()
+        
+        if not username or not password or not full_name:
+            flash('Usuário, senha e nome completo são obrigatórios.', 'error')
+            return render_template('admin_admin_form.html', admin=admin, target_admin=None)
+        
+        if AdminUser.query.filter_by(username=username).first():
+            flash('Este nome de usuário já está em uso.', 'error')
+            return render_template('admin_admin_form.html', admin=admin, target_admin=None)
+        
+        try:
+            new_admin = AdminUser(
+                username=username,
+                full_name=full_name,
+                email=email,
+                phone=phone
+            )
+            new_admin.set_password(password)
+            db.session.add(new_admin)
+            db.session.commit()
+            flash(f'Administrador {username} criado com sucesso!', 'success')
+            return redirect(url_for('admin.admins_list'))
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Erro ao salvar: {str(e)}', 'error')
+    
+    return render_template('admin_admin_form.html', admin=admin, target_admin=None)
+
+
+@admin_bp.route('/admins/<int:admin_id>/edit', methods=['GET', 'POST'])
+@admin_required
+def admins_edit(admin_id):
+    """Editar administrador"""
+    admin = get_current_admin()
+    target_admin = AdminUser.query.get_or_404(admin_id)
+    
+    if request.method == 'POST':
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '').strip()
+        full_name = request.form.get('full_name', '').strip()
+        email = request.form.get('email', '').strip()
+        phone = request.form.get('phone', '').strip()
+        is_active = request.form.get('is_active') == 'on'
+        
+        if not username or not full_name:
+            flash('Usuário e nome completo são obrigatórios.', 'error')
+            return render_template('admin_admin_form.html', admin=admin, target_admin=target_admin)
+        
+        # Verificar se mudou username e se o novo já existe
+        if username != target_admin.username:
+            if AdminUser.query.filter_by(username=username).first():
+                flash('Este nome de usuário já está sendo usado por outro administrador.', 'error')
+                return render_template('admin_admin_form.html', admin=admin, target_admin=target_admin)
+            target_admin.username = username
+            
+        target_admin.full_name = full_name
+        target_admin.email = email
+        target_admin.phone = phone
+        
+        # Impedir desativar a própria conta
+        if admin_id == admin.id:
+            target_admin.is_active = True
+        else:
+            target_admin.is_active = is_active
+            
+        if password:
+            target_admin.set_password(password)
+            
+        try:
+            db.session.commit()
+            flash(f'Dados de {target_admin.username} atualizados!', 'success')
+            return redirect(url_for('admin.admins_list'))
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Erro ao atualizar: {str(e)}', 'error')
+            
+    return render_template('admin_admin_form.html', admin=admin, target_admin=target_admin)
+
+
+@admin_bp.route('/admins/<int:admin_id>/delete', methods=['POST'])
+@admin_required
+def admins_delete(admin_id):
+    """Excluir administrador"""
+    admin = get_current_admin()
+    
+    if admin_id == admin.id:
+        flash('Você não pode excluir sua própria conta.', 'error')
+        return redirect(url_for('admin.admins_list'))
+        
+    target_admin = AdminUser.query.get_or_404(admin_id)
+    username = target_admin.username
+    
+    try:
+        db.session.delete(target_admin)
+        db.session.commit()
+        flash(f'Administrador {username} excluído.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Erro ao excluir: {str(e)}', 'error')
+        
+    return redirect(url_for('admin.admins_list'))
+
+
+@admin_bp.route('/admins/<int:admin_id>/toggle', methods=['POST'])
+@admin_required
+def admins_toggle(admin_id):
+    """Ativar/desativar administrador"""
+    admin = get_current_admin()
+    
+    if admin_id == admin.id:
+        flash('Você não pode desativar sua própria conta.', 'error')
+        return redirect(url_for('admin.admins_list'))
+        
+    target_admin = AdminUser.query.get_or_404(admin_id)
+    target_admin.is_active = not target_admin.is_active
+    db.session.commit()
+    
+    status = 'ativado' if target_admin.is_active else 'desativado'
+    flash(f'Administrador {target_admin.username} {status}.', 'success')
+    return redirect(url_for('admin.admins_list'))
+
+
+# ==================== CONFIGURAÇÃO SMTP ====================
+
+@admin_bp.route('/settings/smtp', methods=['GET', 'POST'])
+@admin_required
+def smtp_settings():
+    """Configurações do servidor de e-mail"""
+    admin = get_current_admin()
+    config_obj = SMTPConfig.query.first()
+    
+    if request.method == 'POST':
+        smtp_server = request.form.get('smtp_server', '').strip()
+        smtp_port = int(request.form.get('smtp_port', 587))
+        smtp_user = request.form.get('smtp_user', '').strip()
+        smtp_password = request.form.get('smtp_password', '')
+        from_email = request.form.get('from_email', '').strip()
+        from_name = request.form.get('from_name', '').strip()
+        use_tls = request.form.get('use_tls') == 'on'
+        
+        if not config_obj:
+            config_obj = SMTPConfig()
+            db.session.add(config_obj)
+            
+        config_obj.smtp_server = smtp_server
+        config_obj.smtp_port = smtp_port
+        config_obj.smtp_user = smtp_user
+        config_obj.from_email = from_email
+        config_obj.from_name = from_name
+        config_obj.use_tls = use_tls
+        
+        if smtp_password:
+            # Reutiliza a função de criptografia de API Key para a senha do SMTP
+            from database import encrypt_api_key
+            config_obj.smtp_password_encrypted = encrypt_api_key(smtp_password)
+            
+        try:
+            db.session.commit()
+            flash('Configurações SMTP salvas com sucesso!', 'success')
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Erro ao salvar: {str(e)}', 'error')
+            
+    return render_template('admin_smtp.html', admin=admin, config=config_obj)
+
+
+@admin_bp.route('/settings/smtp/test', methods=['POST'])
+@admin_required
+def smtp_test():
+    """Testa a conexão SMTP enviando um e-mail de teste"""
+    import smtplib
+    from email.mime.text import MIMEText
+    from email.mime.multipart import MIMEMultipart
+    from database import decrypt_api_key
+    
+    server = request.form.get('smtp_server')
+    port = int(request.form.get('smtp_port', 587))
+    user = request.form.get('smtp_user')
+    password = request.form.get('smtp_password')
+    from_email = request.form.get('from_email')
+    use_tls = request.form.get('use_tls') == 'on'
+    
+    # Se senha vazia, tenta pegar a salva
+    if not password:
+        config_obj = SMTPConfig.query.first()
+        if config_obj and config_obj.smtp_password_encrypted:
+            try:
+                password = decrypt_api_key(config_obj.smtp_password_encrypted)
+            except:
+                return jsonify({'success': False, 'message': 'Erro ao descriptografar senha salva'})
+    
+    if not password or not server:
+        return jsonify({'success': False, 'message': 'Servidor e senha são necessários para o teste'})
+    
+    try:
+        msg = MIMEMultipart()
+        msg['From'] = from_email
+        msg['To'] = from_email # Envia para si mesmo
+        msg['Subject'] = 'Teste de Conexão - Intranet ES-SERVIDOR'
+        
+        body = f"Este é um e-mail de teste enviado pela Intranet ES-SERVIDOR.\nData: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}"
+        msg.attach(MIMEText(body, 'plain'))
+        
+        smtp = smtplib.SMTP(server, port, timeout=10)
+        if use_tls:
+            smtp.starttls()
+            
+        if user and password:
+            smtp.login(user, password)
+            
+        smtp.send_message(msg)
+        smtp.quit()
+        
+        return jsonify({'success': True, 'message': 'E-mail de teste enviado com sucesso!'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+
+# ==================== GESTÃO DE RELATÓRIOS ====================
+
+@admin_bp.route('/reports/schedules')
+@admin_required
+def report_schedules():
+    """Lista agendamentos de relatórios"""
+    admin = get_current_admin()
+    schedules = ReportSchedule.query.all()
+    return render_template('admin_reports.html', admin=admin, schedules=schedules)
+
+
+@admin_bp.route('/reports/schedules/new', methods=['GET', 'POST'])
+@admin_required
+def reports_new():
+    """Cria novo agendamento de relatório"""
+    admin = get_current_admin()
+    
+    if request.method == 'POST':
+        name = request.form.get('name', '').strip()
+        frequency = request.form.get('frequency', 'daily')
+        recipients = request.form.get('recipients', '').strip()
+        
+        if not name or not recipients:
+            flash('Nome e destinatários são obrigatórios.', 'error')
+            return render_template('admin_report_form.html', admin=admin, schedule=None)
+            
+        new_sched = ReportSchedule(
+            name=name,
+            frequency=frequency,
+            custom_days=int(request.form.get('custom_days', 0)) if frequency == 'custom' else 0,
+            recipients=recipients
+        )
+        # Calcula próxima execução (simplificado)
+        now = datetime.utcnow()
+        if frequency == 'daily':
+            new_sched.next_run = now + timedelta(days=1)
+        elif frequency == 'weekly':
+            new_sched.next_run = now + timedelta(weeks=1)
+        elif frequency == 'monthly':
+            new_sched.next_run = now + timedelta(days=30)
+        else:
+            days = int(request.form.get('custom_days', 1))
+            new_sched.next_run = now + timedelta(days=days)
+            
+        db.session.add(new_sched)
+        db.session.commit()
+        flash('Agendamento criado!', 'success')
+        return redirect(url_for('admin.report_schedules'))
+        
+    return render_template('admin_report_form.html', admin=admin, schedule=None)
+
+
+@admin_bp.route('/reports/schedules/<int:schedule_id>/edit', methods=['GET', 'POST'])
+@admin_required
+def reports_edit(schedule_id):
+    """Edita um agendamento de relatório"""
+    admin = get_current_admin()
+    schedule = ReportSchedule.query.get_or_404(schedule_id)
+    
+    if request.method == 'POST':
+        schedule.name = request.form.get('name', '').strip()
+        schedule.frequency = request.form.get('frequency', 'daily')
+        schedule.recipients = request.form.get('recipients', '').strip()
+        schedule.is_active = request.form.get('is_active') == 'on'
+        
+        if schedule.frequency == 'custom':
+            schedule.custom_days = int(request.form.get('custom_days', 0))
+        else:
+            schedule.custom_days = 0
+            
+        try:
+            db.session.commit()
+            flash('Agendamento atualizado!', 'success')
+            return redirect(url_for('admin.report_schedules'))
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Erro ao salvar: {str(e)}', 'error')
+            
+    return render_template('admin_report_form.html', admin=admin, schedule=schedule)
+
+
+@admin_bp.route('/reports/schedules/<int:schedule_id>/send-manual', methods=['POST'])
+@admin_required
+def report_send_manual(schedule_id):
+    """Dispara o envio manual de um relatório agendado"""
+    schedule = ReportSchedule.query.get_or_404(schedule_id)
+    success, message = send_report(schedule)
+    
+    if success:
+        schedule.last_run = datetime.utcnow()
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Relatório enviado com sucesso!'})
+    else:
+        return jsonify({'success': False, 'message': message})
+
+
+def send_report(schedule):
+    """Lógica principal para gerar e enviar o relatório por e-mail"""
+    import smtplib
+    from email.mime.text import MIMEText
+    from email.mime.multipart import MIMEMultipart
+    from database import decrypt_api_key
+    from esservidor_api import ESSERVIDORAPI
+    
+    # 1. Obter config SMTP
+    smtp = SMTPConfig.query.first()
+    if not smtp:
+        return False, "Configuração SMTP não encontrada"
+    
+    try:
+        smtp_password = decrypt_api_key(smtp.smtp_password_encrypted)
+    except:
+        return False, "Erro ao descriptografar senha SMTP"
+    
+    # 2. Obter dados do ES-SERVIDOR (Audit Logs)
+    from config import ESSERVIDOR_API_URL, ESSERVIDOR_API_KEY, API_TIMEOUT, ESSERVIDOR_IP
+    esservidor = ESSERVIDORAPI(ESSERVIDOR_API_URL, ESSERVIDOR_API_KEY, timeout=API_TIMEOUT)
+    
+    # Define o período baseado na frequência (Usando UTC para consistência com o ES-SERVIDOR)
+    end_date = datetime.now(timezone.utc)
+    if schedule.frequency == 'daily':
+        start_date = end_date - timedelta(days=1)
+    elif schedule.frequency == 'weekly':
+        start_date = end_date - timedelta(weeks=1)
+    elif schedule.frequency == 'monthly':
+        start_date = end_date - timedelta(days=30)
+    elif schedule.frequency == 'custom' and schedule.custom_days > 0:
+        start_date = end_date - timedelta(days=schedule.custom_days)
+    else:
+        start_date = end_date - timedelta(days=1)
+    
+    # Para busca no banco local (AccessLog usa naive UTC)
+    start_date_naive = start_date.replace(tzinfo=None)
+    
+    # Busca logs reais do TrueNAS se possível (Aumentado limite para cobrir período movimentado)
+    success, tn_logs = esservidor.get_audit_logs(limit=2000)
+    
+    # Busca logs locais (Login na Intranet) para complementar
+    local_logs = AccessLog.query.filter(AccessLog.timestamp >= start_date_naive).order_by(AccessLog.timestamp.desc()).limit(100).all()
+    
+    # Combinar logs para o resumo (priorizando TrueNAS, mas incluindo locais se desejar)
+    combined_logs = []
+    
+    # Adiciona logs do TrueNAS processados dentro do intervalo solicitado
+    if success and isinstance(tn_logs, list):
+        for entry in tn_logs:
+            # O sistema agora retorna objeto datetime c/ timezone em 'dt'
+            log_dt = entry.get('dt')
+            if log_dt:
+                # Filtragem rigorosa por data
+                if start_date <= log_dt <= end_date:
+                    # Normaliza: 'timestamp' no combined_logs deve ser objeto p/ ordenação
+                    entry['timestamp'] = log_dt.replace(tzinfo=None) # Volta p/ naive UTC p/ compatibilidade c/ local_logs
+                    combined_logs.append(entry)
+            
+    # Adiciona logs locais formatados como dicionários compatíveis
+    for l in local_logs:
+        # Para o relatório, não marcamos erro de senha como "ERRO" de sistema/permissão
+        report_success = True if l.action == 'login' else l.success
+        
+        combined_logs.append({
+            'username': l.username,
+            'action': f'Login Intranet ({l.details or ""})' if l.action == 'login' else l.action,
+            'success': report_success,
+            'timestamp': l.timestamp, # Já é naive datetime UTC
+            'source': 'Intranet',
+            'path': 'Painel Web' 
+        })
+        
+    # Reordenar por timestamp desc
+    combined_logs.sort(key=lambda x: x.get('timestamp') if isinstance(x.get('timestamp'), datetime) else datetime.min, reverse=True)
+    
+    # --- CÁLCULO DE ESTATÍSTICAS VISUAIS ---
+    activity_counts = Counter() # Acessou, Editou, etc.
+    folder_counts = Counter()   # Pastas Top 5
+    
+    for log in combined_logs:
+        # Contagem de Ações
+        act = log.get('action', '')
+        if 'Acessou' in act: activity_counts['Acessou'] += 1
+        elif 'Editou' in act: activity_counts['Editou'] += 1
+        elif 'Criou' in act: activity_counts['Criou'] += 1
+        elif 'Deletou' in act: activity_counts['Deletou'] += 1
+        elif 'Acesso Negado' in act: activity_counts['Negados'] += 1
+        
+        # Contagem de Pastas (primeiro nível do path)
+        p = log.get('path', '')
+        if p and p not in ['N/A', 'Painel Web', '.', '']:
+            # Pega o primeiro diretório antes da primeira /
+            root = p.split('/')[0] if '/' in p else p
+            folder_counts[root] += 1
+            
+    # Preparar dados para o template
+    total_acts = sum(activity_counts.values()) or 1
+    activity_stats = [
+        {'label': 'Acessos', 'count': activity_counts['Acessou'], 'pct': round((activity_counts['Acessou']/total_acts)*100), 'color': '#3b82f6'},
+        {'label': 'Edições', 'count': activity_counts['Editou'], 'pct': round((activity_counts['Editou']/total_acts)*100), 'color': '#10b981'},
+        {'label': 'Criações', 'count': activity_counts['Criou'], 'pct': round((activity_counts['Criou']/total_acts)*100), 'color': '#f59e0b'},
+        {'label': 'Deletados', 'count': activity_counts['Deletou'], 'pct': round((activity_counts['Deletou']/total_acts)*100), 'color': '#ef4444'},
+        {'label': 'Negados', 'count': activity_counts['Negados'], 'pct': round((activity_counts['Negados']/total_acts)*100), 'color': '#6366f1'} # Indigo/Roxo para destacar
+    ]
+    
+    top_folders_raw = folder_counts.most_common(5)
+    max_folder_count = top_folders_raw[0][1] if top_folders_raw else 1
+    folder_stats = [
+        {'label': f[0], 'count': f[1], 'pct': round((f[1]/max_folder_count)*100)} 
+        for f in top_folders_raw
+    ]
+
+    # Estatísticas básicas para o relatório (agora incluindo logins locais)
+    stats = {
+        'total': len(combined_logs),
+        'success': len([l for l in combined_logs if l.get('success', True)]),
+        'failure': len([l for l in combined_logs if not l.get('success', False)])
+    }
+    
+    # 3. Gerar HTML do e-mail
+    try:
+        html_body = render_template('email_report_template.html',
+                                  report_name=schedule.name,
+                                  server_info="ES-SERVIDOR",
+                                  start_date=start_date.strftime('%d/%m/%Y'),
+                                  end_date=end_date.strftime('%d/%m/%Y'),
+                                  stats=stats,
+                                  activity_stats=activity_stats,
+                                  folder_stats=folder_stats,
+                                  recent_logs=combined_logs[:15])
+    except Exception as e:
+        current_app.logger.error(f"Erro ao gerar template de e-mail: {e}")
+        return False, f"Erro ao gerar template HTML: {str(e)}"
+    
+    # 4. Enviar E-mail
+    error_msgs = []
+    recipients = [r.strip() for r in schedule.recipients.split(',') if r.strip()]
+    
+    for recipient in recipients:
+        try:
+            msg = MIMEMultipart()
+            msg['From'] = f"{smtp.from_name} <{smtp.from_email}>"
+            msg['To'] = recipient
+            msg['Subject'] = f"Relatório de Atividades: {schedule.name}"
+            
+            msg.attach(MIMEText(html_body, 'html'))
+            
+            server = smtplib.SMTP(smtp.smtp_server, smtp.smtp_port, timeout=20)
+            if smtp.use_tls:
+                server.starttls()
+            
+            if smtp.smtp_user and smtp_password:
+                server.login(smtp.smtp_user, smtp_password)
+            
+            server.send_message(msg)
+            server.quit()
+            
+            # Log de sucesso
+            log = ReportLog(schedule_id=schedule.id, recipient=recipient, status='success')
+            db.session.add(log)
+        except Exception as e:
+            error_msgs.append(f"{recipient}: {str(e)}")
+            log = ReportLog(schedule_id=schedule.id, recipient=recipient, status='failure', error_message=str(e))
+            db.session.add(log)
+            
+    db.session.commit()
+    
+    if error_msgs:
+        return False, f"Erros no envio: {'; '.join(error_msgs)}"
+    return True, "Enviado com sucesso"

@@ -9,6 +9,7 @@ from logging.handlers import RotatingFileHandler
 import os
 from datetime import datetime, timedelta
 from io import BytesIO
+from apscheduler.schedulers.background import BackgroundScheduler
 
 import config
 from esservidor_api import ESSERVIDORAPI
@@ -80,6 +81,10 @@ login_manager.login_view = 'user_login'
 login_manager.login_message = 'Por favor, faça login para acessar esta página.'
 login_manager.login_message_category = 'warning'
 
+# Inicializar Scheduler para tarefas em segundo plano
+scheduler = BackgroundScheduler()
+scheduler.start()
+
 
 class User(UserMixin):
     """Classe de usuário para Flask-Login"""
@@ -134,97 +139,102 @@ def user_login():
         
         if not username or not password:
             flash('Por favor, preencha usuário e senha.', 'error')
-            app.logger.warning(f"Tentativa de login com campos vazios")
             return render_template('user_login.html')
         
         app.logger.info(f"Tentativa de login: {username}")
         
-        # Buscar usuário no banco de dados
+        # 1. Tentar validar diretamente no ES-SERVIDOR via API (Basic Auth)
+        is_valid_on_truenas, truenas_error = esservidor.validate_user_with_password(username, password)
+        
         db_user = ESSERVIDORUser.query.filter_by(username=username).first()
         
-        if not db_user:
-            app.logger.warning(f"Usuário não cadastrado: {username}")
-            AccessLog.log_action(username, 'login', request.remote_addr, 
+        # 2. Se a senha do TrueNAS não funcionou, tentar a senha local (se o usuário existir no DB)
+        is_authenticated = False
+        auth_method = None
+        
+        if is_valid_on_truenas:
+            is_authenticated = True
+            auth_method = 'truenas_api'
+        elif db_user and db_user.check_password(password):
+            is_authenticated = True
+            auth_method = 'local_db'
+        
+        if not is_authenticated:
+            app.logger.warning(f"Falha de autenticação para: {username}")
+            AccessLog.log_action(username, 'login', request.remote_addr,
                                request.user_agent.string[:255] if request.user_agent else None,
-                               success=False, details='Usuário não cadastrado')
+                               success=False, details=f'Falha na autenticação ( {truenas_error})')
             flash('Usuário ou senha incorretos.', 'error')
             return render_template('user_login.html')
-        
-        if not db_user.is_active:
+
+        # 3. Se autenticado, verificar se o usuário no DB está ativo (se existir)
+        if db_user and not db_user.is_active:
             app.logger.warning(f"Usuário desativado tentou login: {username}")
-            AccessLog.log_action(username, 'login', request.remote_addr, 
-                               request.user_agent.string[:255] if request.user_agent else None,
-                               success=False, user_id=db_user.id, details='Conta desativada')
-            flash('Sua conta está desativada. Contate o administrador.', 'error')
-            return render_template('user_login.html')
-        
-        # Verificar senha local
-        if not db_user.check_password(password):
-            app.logger.warning(f"Senha incorreta para {username}")
             AccessLog.log_action(username, 'login', request.remote_addr,
                                request.user_agent.string[:255] if request.user_agent else None,
-                               success=False, user_id=db_user.id, details='Senha incorreta')
-            flash('Usuário ou senha incorretos.', 'error')
+                               success=False, user_id=db_user.id, details='Conta desativada no DB local')
+            flash('Sua conta está desativada na intranet. Contate o administrador.', 'error')
             return render_template('user_login.html')
+
+        # 4. Obter informações e API Key
+        stored_api_key = None
+        if db_user:
+            try:
+                stored_api_key = decrypt_api_key(db_user.api_key_encrypted)
+            except Exception as e:
+                app.logger.error(f"Erro ao descriptografar API Key para {username}: {e}")
         
-        # Obter API Key descriptografada do banco
-        try:
-            stored_api_key = decrypt_api_key(db_user.api_key_encrypted)
-        except Exception as e:
-            app.logger.error(f"Erro ao descriptografar API Key para {username}: {e}")
-            flash('Erro interno. Contate o administrador.', 'error')
-            return render_template('user_login.html')
-        
-        # Validar API Key no ES-SERVIDOR (opcional, para garantir que ainda é válida)
-        valid, error = esservidor.validate_user_with_api_key(username, stored_api_key)
-        
-        if not valid:
-            app.logger.warning(f"API Key inválida no ES-SERVIDOR: {username} - {error}")
-            AccessLog.log_action(username, 'login', request.remote_addr,
-                               request.user_agent.string[:255] if request.user_agent else None,
-                               success=False, user_id=db_user.id, details=f'ES-SERVIDOR: {error}')
-            flash('Erro de conexão com ES-SERVIDOR. Contate o administrador.', 'error')
-            return render_template('user_login.html')
+        # Se não tem API Key no banco, usará a do admin (global)
+        current_api_key = stored_api_key or config.ESSERVIDOR_API_KEY
         
         # Obter informações do usuário do ES-SERVIDOR
-        success, user_info = esservidor.get_user_info(username, stored_api_key)
+        success, user_info = esservidor.get_user_info(username, current_api_key if stored_api_key else None)
         
         if not success:
-            user_info = {'full_name': db_user.full_name, 'username': username}
+            user_info = {
+                'username': username, 
+                'full_name': db_user.full_name if db_user else username,
+                'uid': None,
+                'groups': []
+            }
         
         # Criar objeto User e fazer login
         user = User(
             username=username,
-            full_name=user_info.get('full_name', db_user.full_name),
+            full_name=user_info.get('full_name', db_user.full_name if db_user else username),
             user_data=user_info,
-            db_user_id=db_user.id
+            db_user_id=db_user.id if db_user else None
         )
         
         # Armazenar dados na sessão
         session['user_data'] = {
             'username': username,
-            'full_name': user_info.get('full_name', db_user.full_name),
+            'full_name': user.full_name,
             'uid': user_info.get('uid'),
             'groups': user_info.get('groups', []),
-            'api_key': stored_api_key,  # Usa API Key do banco
-            'db_user_id': db_user.id
+            'api_key': current_api_key,
+            'db_user_id': db_user.id if db_user else None,
+            'auth_method': auth_method
         }
         
         login_user(user, remember=True)
         session.permanent = True
         
-        # Atualizar último acesso
-        db_user.update_last_access()
+        # Atualizar último acesso no banco (se existir)
+        if db_user:
+            db_user.update_last_access()
         
         # Registrar log de sucesso
         AccessLog.log_action(username, 'login', request.remote_addr,
                            request.user_agent.string[:255] if request.user_agent else None,
-                           success=True, user_id=db_user.id)
+                           success=True, user_id=db_user.id if db_user else None,
+                           details=f'Autenticado via {auth_method}')
         
-        app.logger.info(f"Login bem-sucedido: {username} ({user.full_name})")
+        app.logger.info(f"Login bem-sucedido: {username} ({user.full_name}) via {auth_method}")
         flash(f'Bem-vindo, {user.full_name}!', 'success')
         
         return redirect(url_for('dashboard'))
+
     
     return render_template('user_login.html')
 

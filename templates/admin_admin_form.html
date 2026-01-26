@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block title %}{{ 'Editar' if target_admin else 'Novo' }} Administrador{% endblock %}
+{% block page_title %}{{ 'Editar' if target_admin else 'Novo' }} Administrador{% endblock %}
+{% block page_subtitle %}<p class="topbar-subtitle">{{ 'Atualize os dados de acesso administrativo' if target_admin else
+    'Cadastre um novo administrador para o sistema' }}</p>{% endblock %}
+
+{% block content %}
+<div style="max-width: 600px;">
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">{{ '✏️ Editar' if target_admin else '➕ Novo' }} Administrador</h3>
+        </div>
+        <div class="card-body">
+            <form method="POST"
+                action="{{ url_for('admin.admins_edit', admin_id=target_admin.id) if target_admin else url_for('admin.admins_new') }}">
+
+                <div class="form-group">
+                    <label for="username" class="form-label required">Usuário (Login)</label>
+                    <input type="text" id="username" name="username" class="form-control"
+                        value="{{ target_admin.username if target_admin else '' }}" placeholder="Ex: admin.joao"
+                        required>
+                </div>
+
+                <div class="form-group">
+                    <label for="full_name" class="form-label required">Nome Completo</label>
+                    <input type="text" id="full_name" name="full_name" class="form-control"
+                        value="{{ target_admin.full_name if target_admin else '' }}" placeholder="Ex: João Silva"
+                        required>
+                </div>
+
+                <div class="form-group">
+                    <label for="password" class="form-label {% if not target_admin %}required{% endif %}">Senha</label>
+                    <input type="password" id="password" name="password" class="form-control"
+                        placeholder="{% if target_admin %}Deixe em branco para não alterar{% else %}Mínimo 6 caracteres{% endif %}"
+                        {% if not target_admin %}required{% endif %}>
+                </div>
+
+                <div class="form-group">
+                    <label for="email" class="form-label">E-mail</label>
+                    <input type="email" id="email" name="email" class="form-control"
+                        value="{{ target_admin.email if target_admin else '' }}" placeholder="Ex: joao@empresa.com.br">
+                </div>
+
+                <div class="form-group">
+                    <label for="phone" class="form-label">Telefone / WhatsApp</label>
+                    <input type="text" id="phone" name="phone" class="form-control"
+                        value="{{ target_admin.phone if target_admin else '' }}" placeholder="Ex: (11) 98888-7777">
+                </div>
+
+                {% if target_admin and target_admin.id != admin.id %}
+                <div class="form-group" style="margin-top: 16px;">
+                    <label class="checkbox-container">
+                        <input type="checkbox" name="is_active" {% if target_admin.is_active %}checked{% endif %}>
+                        <span class="checkmark"></span>
+                        Administrador Ativo
+                    </label>
+                </div>
+                {% endif %}
+
+                <div style="display: flex; gap: 12px; margin-top: 32px;">
+                    <button type="submit" class="btn btn-primary">
+                        💾 {{ 'Salvar Alterações' if target_admin else 'Criar Administrador' }}
+                    </button>
+                    <a href="{{ url_for('admin.admins_list') }}" class="btn btn-secondary">
+                        Cancelar
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

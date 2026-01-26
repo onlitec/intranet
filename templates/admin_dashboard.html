@@ -136,7 +136,7 @@
                         </td>
                         <td><code>{{ log.ip_address or 'N/A' }}</code></td>
                         <td>
-                            {% if log.success %}
+                            {% if log.success or log.action == 'login' %}
                             <span class="badge badge-success">✓ OK</span>
                             {% else %}
                             <span class="badge badge-error">✕ Falha</span>
@@ -166,12 +166,13 @@
         const colors = {
             bg: [
                 'rgba(37, 99, 235, 0.2)', // Acessos (Blue)
-                'rgba(245, 158, 11, 0.2)', // Edições (Orange)
-                'rgba(16, 185, 129, 0.2)', // Criações (Green)
-                'rgba(239, 68, 68, 0.2)'   // Deleções (Red)
+                'rgba(16, 185, 129, 0.2)', // Edições (Green)
+                'rgba(245, 158, 11, 0.2)', // Criações (Orange)
+                'rgba(239, 68, 68, 0.2)',  // Deleções (Red)
+                'rgba(99, 102, 241, 0.2)'  // Negados (Indigo)
             ],
             border: [
-                '#2563eb', '#f59e0b', '#10b981', '#ef4444'
+                '#2563eb', '#10b981', '#f59e0b', '#ef4444', '#6366f1'
             ]
         };
 
@@ -186,7 +187,7 @@
             label: 'Registros',
             data: {{ chart_data.action_counts | tojson }},
         backgroundColor: colors.bg,
-        borderColor: ['#2563eb', '#f59e0b', '#10b981', '#ef4444'],
+        borderColor: colors.border,
         borderWidth: 1,
         borderRadius: 4
                 }]

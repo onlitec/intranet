@@ -4,7 +4,8 @@ Documentação: https://www.truenas.com/docs/scale/scaletutorials/api/
 """
 import requests
 import logging
-from datetime import datetime
+import time
+from datetime import datetime, timezone
 from typing import Dict, List, Tuple, Optional
 
 logger = logging.getLogger(__name__)
@@ -44,6 +45,7 @@ class ESSERVIDORAPI:
         url = f"{self.base_url}{endpoint}"
         
         try:
+            start_time = time.time()
             if method.upper() == 'GET':
                 response = requests.get(url, headers=self.headers, timeout=self.timeout)
             elif method.upper() == 'POST':
@@ -51,6 +53,12 @@ class ESSERVIDORAPI:
             else:
                 return False, f"Método HTTP não suportado: {method}"
             
+            duration = time.time() - start_time
+            if duration > 1.0:
+                logger.warning(f"Resposta LENTA do ES-SERVIDOR: {endpoint} levou {duration:.2f}s")
+            else:
+                logger.debug(f"API {endpoint} respondeu em {duration:.2f}s")
+                
             response.raise_for_status()
             
             # Algumas respostas podem ser vazias (204 No Content)
@@ -129,6 +137,36 @@ class ESSERVIDORAPI:
         if success:
             return info.get('hostname', '')
         return ''
+
+    def validate_user_with_password(self, username: str, password: str) -> Tuple[bool, Optional[str]]:
+        """
+        Valida usuário/senha usando Basic Auth contra a API do ES-SERVIDOR
+        
+        Args:
+            username: Nome de usuário
+            password: Senha do usuário
+            
+        Returns:
+            Tupla (válido, mensagem_erro)
+        """
+        logger.info(f"Validando credenciais via Basic Auth para: {username}")
+        
+        url = f"{self.base_url}/user"
+        try:
+            # Tenta acessar /user com Basic Auth
+            response = requests.get(url, auth=(username, password), timeout=self.timeout)
+            
+            if response.status_code == 200:
+                logger.info(f"Credenciais de {username} validadas com sucesso via Basic Auth")
+                return True, None
+            elif response.status_code == 401:
+                return False, "Usuário ou senha incorretos no ES-SERVIDOR"
+            else:
+                return False, f"Erro na API do ES-SERVIDOR: {response.status_code}"
+                
+        except Exception as e:
+            logger.error(f"Erro ao validar credenciais via Basic Auth: {e}")
+            return False, "Não foi possível conectar ao ES-SERVIDOR para validar a senha"
 
     def validate_user_with_api_key(self, username: str, user_api_key: str) -> Tuple[bool, Optional[str]]:
         """
@@ -505,10 +543,16 @@ class ESSERVIDORAPI:
                     elif 'path' in event_data:
                         path = event_data['path']
             
+            # Extração do resultado (sucesso/erro) e detecção de Acesso Negado
+            res_val = event_data.get('result', {}).get('value_parsed', '') if isinstance(event_data, dict) else ''
+            is_access_denied = (res_val == 'NT_STATUS_ACCESS_DENIED')
+            
+            if is_access_denied:
+                friendly_action = '🛑 Acesso Negado'
+            
             # Filtro para ocultar falhas de "Arquivo não encontrado" (Ruído SMB do Windows)
-            if not entry.get('success', True):
-                res = event_data.get('result', {})
-                if res.get('value_parsed') == 'NT_STATUS_OBJECT_NAME_NOT_FOUND':
+            if not entry.get('success', True) and not is_access_denied:
+                if res_val == 'NT_STATUS_OBJECT_NAME_NOT_FOUND':
                     continue
 
             # Filtro adicional para remover caminhos inúteis e arquivos temporários (Excel/Word)
@@ -537,11 +581,12 @@ class ESSERVIDORAPI:
 
             processed_logs.append({
                 'timestamp': ts_str,
+                'dt': datetime.fromtimestamp(ts_val, tz=timezone.utc) if ts_val else None,
                 'username': username,
                 'action': friendly_action,
                 'path': path,
                 'ip': entry.get('address', 'N/A'),
-                'status': entry.get('success', True),
+                'success': entry.get('success', True),
                 'details': event_data
             })
             

@@ -1,49 +1,55 @@
 {% extends "base.html" %}
 
-{% block title %}Usuários Intranet{% endblock %}
-{% block page_title %}Usuários Intranet{% endblock %}
-{% block page_subtitle %}<p class="topbar-subtitle">Gerencie os usuários que podem acessar a intranet</p>{% endblock %}
+{% block title %}Administradores{% endblock %}
+{% block page_title %}Administradores{% endblock %}
+{% block page_subtitle %}<p class="topbar-subtitle">Gerencie os usuários com permissão de acesso ao painel
+    administrativo</p>{% endblock %}
 
 {% block content %}
 <!-- Action Bar -->
 <div style="display: flex; justify-content: flex-end; margin-bottom: 24px;">
-    <a href="{{ url_for('admin.users_new') }}" class="btn btn-primary">
-        ➕ Novo Usuário
+    <a href="{{ url_for('admin.admins_new') }}" class="btn btn-primary">
+        ➕ Novo Administrador
     </a>
 </div>
 
-<!-- Users Table -->
+<!-- Admins Table -->
 <div class="card">
     <div class="card-header">
-        <h3 class="card-title">🔑 Usuários Cadastrados</h3>
+        <h3 class="card-title">🔒 Usuários Administradores</h3>
     </div>
     <div class="card-body" style="padding: 0;">
-        {% if users %}
+        {% if admins %}
         <div class="table-container">
             <table class="data-table">
                 <thead>
                     <tr>
                         <th>Usuário</th>
                         <th>Nome Completo</th>
-                        <th>Último Acesso</th>
+                        <th>E-mail / Telefone</th>
+                        <th>Último Login</th>
                         <th>Status</th>
                         <th style="text-align: center;">Ações</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% for user in users %}
+                    {% for a in admins %}
                     <tr>
-                        <td><strong>{{ user.username }}</strong></td>
-                        <td>{{ user.full_name }}</td>
+                        <td><strong>{{ a.username }}</strong></td>
+                        <td>{{ a.full_name }}</td>
                         <td>
-                            {% if user.last_login %}
-                            {{ user.last_login.strftime('%d/%m/%Y %H:%M') }}
+                            <div>{{ a.email or 'N/A' }}</div>
+                            <div class="text-xs text-muted">{{ a.phone or 'N/A' }}</div>
+                        </td>
+                        <td>
+                            {% if a.last_login %}
+                            {{ a.last_login.strftime('%d/%m/%Y %H:%M') }}
                             {% else %}
                             <span class="text-muted">Nunca</span>
                             {% endif %}
                         </td>
                         <td>
-                            {% if user.is_active %}
+                            {% if a.is_active %}
                             <span class="badge badge-success badge-dot">Ativo</span>
                             {% else %}
                             <span class="badge badge-error badge-dot">Inativo</span>
@@ -51,20 +57,25 @@
                         </td>
                         <td>
                             <div class="table-actions" style="justify-content: center;">
-                                <a href="{{ url_for('admin.users_edit', user_id=user.id) }}"
+                                <a href="{{ url_for('admin.admins_edit', admin_id=a.id) }}"
                                     class="btn btn-ghost btn-sm">✏️ Editar</a>
-                                <form action="{{ url_for('admin.users_toggle', user_id=user.id) }}" method="POST"
+
+                                {% if a.id != admin.id %}
+                                <form action="{{ url_for('admin.admins_toggle', admin_id=a.id) }}" method="POST"
                                     style="display: inline;">
                                     <button type="submit" class="btn btn-ghost btn-sm">
-                                        {% if user.is_active %}🚫 Desativar{% else %}✅ Ativar{% endif %}
+                                        {% if a.is_active %}🚫 Desativar{% else %}✅ Ativar{% endif %}
                                     </button>
                                 </form>
-                                <form action="{{ url_for('admin.users_delete', user_id=user.id) }}" method="POST"
+                                <form action="{{ url_for('admin.admins_delete', admin_id=a.id) }}" method="POST"
                                     style="display: inline;"
-                                    onsubmit="return confirm('Tem certeza que deseja excluir este usuário?');">
+                                    onsubmit="return confirm('Tem certeza que deseja excluir este administrador?');">
                                     <button type="submit" class="btn btn-ghost btn-sm" style="color: var(--error);">🗑️
                                         Excluir</button>
                                 </form>
+                                {% else %}
+                                <span class="badge badge-info text-xs">Sua Conta</span>
+                                {% endif %}
                             </div>
                         </td>
                     </tr>
@@ -74,12 +85,8 @@
         </div>
         {% else %}
         <div class="empty-state">
-            <div class="empty-state-icon">👥</div>
-            <h3 class="empty-state-title">Nenhum usuário cadastrado</h3>
-            <p class="empty-state-description">Cadastre usuários para permitir acesso à intranet.</p>
-            <a href="{{ url_for('admin.users_new') }}" class="btn btn-primary" style="margin-top: 16px;">
-                ➕ Cadastrar Primeiro Usuário
-            </a>
+            <div class="empty-state-icon">🔒</div>
+            <h3 class="empty-state-title">Nenhum administrador encontrado</h3>
         </div>
         {% endif %}
     </div>
