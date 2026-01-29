@@ -81,7 +81,12 @@
         btn.disabled = true;
         btn.innerHTML = '⌛ Enviando...';
 
-        fetch(`/admin/reports/schedules/${id}/send-manual`, { method: 'POST' })
+        fetch(`/admin/reports/schedules/${id}/send-manual`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token() }}'
+            }
+        })
             .then(r => r.json())
             .then(data => {
                 if (data.success) {

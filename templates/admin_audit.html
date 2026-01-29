@@ -140,7 +140,7 @@
                         </td>
                         <td><code>{{ log.ip }}</code></td>
                         <td>
-                            {% if log.status %}
+                            {% if log.success %}
                             <span class="badge badge-success">✓ OK</span>
                             {% else %}
                             <span class="badge badge-error">✕ Falha</span>
@@ -281,8 +281,9 @@
                 username: document.getElementById('filterUser').value,
                 event: document.getElementById('filterEvent').value,
                 limit: document.getElementById('filterLimit').value,
-                page: {{ filters.page }}
-            };
+                page: {{ filters.page }
+        }
+    };
         };
 
     function updateLogs() {
@@ -325,7 +326,7 @@
                         <code style="font-size: var(--text-xs); max-width: 400px; display: inline-block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${log.path}">${log.path}</code>
                     </td>
                     <td><code>${log.ip}</code></td>
-                    <td><span class="badge ${log.status ? 'badge-success' : 'badge-error'}">${log.status ? '✓ OK' : '✕ Falha'}</span></td>
+                    <td><span class="badge ${log.success ? 'badge-success' : 'badge-error'}">${log.success ? '✓ OK' : '✕ Falha'}</span></td>
                 </tr>
             `;
         });

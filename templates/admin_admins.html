@@ -63,6 +63,7 @@
                                 {% if a.id != admin.id %}
                                 <form action="{{ url_for('admin.admins_toggle', admin_id=a.id) }}" method="POST"
                                     style="display: inline;">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                     <button type="submit" class="btn btn-ghost btn-sm">
                                         {% if a.is_active %}🚫 Desativar{% else %}✅ Ativar{% endif %}
                                     </button>
@@ -70,6 +71,7 @@
                                 <form action="{{ url_for('admin.admins_delete', admin_id=a.id) }}" method="POST"
                                     style="display: inline;"
                                     onsubmit="return confirm('Tem certeza que deseja excluir este administrador?');">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                     <button type="submit" class="btn btn-ghost btn-sm" style="color: var(--error);">🗑️
                                         Excluir</button>
                                 </form>

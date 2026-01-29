@@ -10,7 +10,10 @@ load_dotenv()
 
 # Configurações do ES-SERVIDOR
 ESSERVIDOR_IP = os.getenv('ESSERVIDOR_IP', '192.168.1.100')
-ESSERVIDOR_API_URL = f"http://{ESSERVIDOR_IP}/api/v2.0"
+ESSERVIDOR_USE_HTTPS = os.getenv('ESSERVIDOR_USE_HTTPS', 'false').lower() == 'true'
+ESSERVIDOR_VERIFY_SSL = os.getenv('ESSERVIDOR_VERIFY_SSL', 'false').lower() == 'true'
+protocol = 'https' if ESSERVIDOR_USE_HTTPS else 'http'
+ESSERVIDOR_API_URL = f"{protocol}://{ESSERVIDOR_IP}/api/v2.0"
 ESSERVIDOR_API_KEY = os.getenv('ESSERVIDOR_API_KEY', '')
 
 # Configurações do Flask

@@ -3,6 +3,7 @@ Aplicação Flask Principal - Intranet ES-SERVIDOR v2.0
 Sistema de autenticação com gestão de usuários e banco de dados
 """
 from flask import Flask, render_template, request, redirect, url_for, session, flash, send_file, jsonify
+from flask_wtf.csrf import CSRFProtect
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 import logging
 from logging.handlers import RotatingFileHandler
@@ -19,6 +20,7 @@ from admin import admin_bp
 
 # Inicializar aplicação Flask
 app = Flask(__name__)
+csrf = CSRFProtect(app)
 app.config['SECRET_KEY'] = config.FLASK_SECRET_KEY
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(seconds=config.SESSION_TIMEOUT)
 
@@ -363,7 +365,15 @@ def generate_bat_script(username: str, shares: list, server_name: str = None) ->
     
     # Mapear cada compartilhamento
     for idx, share in enumerate(shares):
-        drive_letter = config.DEFAULT_DRIVE_LETTERS[idx] if idx < len(config.DEFAULT_DRIVE_LETTERS) else 'P'
+        # Usar letras de unidade dinamicamente, evitando estourar a lista
+        if idx < len(config.DEFAULT_DRIVE_LETTERS):
+            drive_letter = config.DEFAULT_DRIVE_LETTERS[idx]
+        else:
+            # Se exceder 10, tentamos usar letras anteriores (P, O, N...)
+            letters = "PONMLKJIHGFEDCBA"
+            l_idx = idx - len(config.DEFAULT_DRIVE_LETTERS)
+            drive_letter = letters[l_idx] if l_idx < len(letters) else 'M'
+            
         share_name = share['name']
         
         lines.extend([
@@ -464,10 +474,7 @@ if __name__ == '__main__':
         app.logger.warning("✗ Não foi possível conectar ao ES-SERVIDOR - verifique config")
     
     app.logger.info("=" * 50)
-    app.logger.info("  CREDENCIAIS ADMIN PADRÃO:")
-    app.logger.info("  Usuário: admin")
-    app.logger.info("  Senha: admin123")
-    app.logger.info("  Acesse: /admin/login")
+    app.logger.info("  Acesse a plataforma e altere a senha do admin no primeiro login.")
     app.logger.info("=" * 50)
     
     app.run(

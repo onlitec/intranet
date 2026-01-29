@@ -12,6 +12,7 @@
         <div class="card-body">
             <form method="POST"
                 action="{{ url_for('admin.reports_edit', schedule_id=schedule.id) if schedule else url_for('admin.reports_new') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="form-group">
                     <label for="name" class="form-label required">Nome do Relatório</label>
                     <input type="text" id="name" name="name" class="form-control"

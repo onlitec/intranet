@@ -14,6 +14,7 @@
         <div class="card-body">
             <form method="POST"
                 action="{{ url_for('admin.users_edit', user_id=user.id) if user else url_for('admin.users_new') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
                 <div class="form-group">
                     <label for="username" class="form-label required">Username do ES-SERVIDOR</label>

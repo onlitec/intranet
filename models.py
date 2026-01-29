@@ -22,6 +22,7 @@ class AdminUser(db.Model):
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_login = db.Column(db.DateTime)
+    must_change_password = db.Column(db.Boolean, default=True)
     
     # Relacionamento com usuários criados por este admin
     created_users = db.relationship('ESSERVIDORUser', backref='created_by_admin', lazy='dynamic')
@@ -56,6 +57,7 @@ class ESSERVIDORUser(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     created_by_id = db.Column(db.Integer, db.ForeignKey('admin_users.id'))
     last_access = db.Column(db.DateTime)
+    must_change_password = db.Column(db.Boolean, default=False)
     notes = db.Column(db.Text)  # Notas do admin sobre o usuário
     
     # Relacionamento com logs
@@ -181,8 +183,8 @@ def init_db(app):
                 email='admin@localhost'
             )
             admin.set_password('admin123')  # Senha padrão - ALTERAR em produção!
+            admin.must_change_password = True
             db.session.add(admin)
             db.session.commit()
-            print("✓ Admin padrão criado: admin / admin123")
         
         return db

@@ -45,11 +45,12 @@ class ESSERVIDORAPI:
         url = f"{self.base_url}{endpoint}"
         
         try:
+            import config
             start_time = time.time()
             if method.upper() == 'GET':
-                response = requests.get(url, headers=self.headers, timeout=self.timeout)
+                response = requests.get(url, headers=self.headers, timeout=self.timeout, verify=config.ESSERVIDOR_VERIFY_SSL)
             elif method.upper() == 'POST':
-                response = requests.post(url, headers=self.headers, json=data, timeout=self.timeout)
+                response = requests.post(url, headers=self.headers, json=data, timeout=self.timeout, verify=config.ESSERVIDOR_VERIFY_SSL)
             else:
                 return False, f"Método HTTP não suportado: {method}"
             
@@ -133,6 +134,7 @@ class ESSERVIDORAPI:
         Returns:
             Hostname do servidor ou string vazia se erro
         """
+        import config
         success, info = self.get_system_info()
         if success:
             return info.get('hostname', '')
@@ -385,24 +387,34 @@ class ESSERVIDORAPI:
             share_path = share.get('path')
             share_name = share.get('name')
             
-            # Por simplicidade, vamos assumir que:
-            # - Se o share está habilitado, o usuário pode acessá-lo
-            # - Em produção, você pode querer verificar ACL detalhada
-            
-            # Opção 1: Verificação simplificada (todos os usuários autenticados)
-            accessible_shares.append({
-                'name': share_name,
-                'path': share_path,
-                'comment': share.get('comment', ''),
-                'id': share.get('id')
-            })
-            
-            # Opção 2: Verificação detalhada via ACL (descomente se necessário)
-            # success_acl, acl_data = self.get_filesystem_acl(share_path)
-            # if success_acl:
-            #     # Verificar se user_id ou user_groups têm permissão no ACL
-            #     # Lógica específica dependeria da estrutura do ACL retornado
-            #     pass
+            # Opção 2: Verificação detalhada via ACL
+            success_acl, acl_data = self.get_filesystem_acl(share_path)
+            if success_acl:
+                # Se o ACL retornar dados, verificamos se o usuário tem algum tipo de permissão
+                # No TrueNAS Scale, se o usuário não tiver NENHUMA permissão, o SHARE não deve aparecer
+                # Para simplificar e ser seguro: se conseguimos ler o ACL, verificamos entradas para o owner, group ou de todos
+                # Em um cenário real, percorreríamos as entradas (ACEs)
+                has_access = False
+                for ace in acl_data.get('acl', []):
+                    # Se houver uma entrada para o usuário ou para um grupo que ele pertence, ou 'EVERYONE'
+                    if (ace.get('who') == username or 
+                        (ace.get('id') and int(ace['id']) in user_groups) or 
+                        ace.get('tag') in ['EVERYONE@', 'group@', 'owner@']):
+                        # Se for um ALLOW, ele tem algum nível de acesso
+                        if ace.get('type') == 'ALLOW':
+                            has_access = True
+                            break
+                
+                if has_access:
+                    accessible_shares.append({
+                        'name': share_name,
+                        'path': share_path,
+                        'comment': share.get('comment', ''),
+                        'id': share.get('id')
+                    })
+            else:
+                # Se falhar em ler o ACL (erro 403 por exemplo), o usuário provavelmente não tem acesso
+                logger.debug(f"Falha ao ler ACL para {share_path}: {acl_data}")
         
         logger.info(f"Usuário {username} tem acesso a {len(accessible_shares)} compartilhamento(s)")
         return True, accessible_shares
@@ -575,7 +587,8 @@ class ESSERVIDORAPI:
             
             if ts_val:
                 last_ts = dedup_cache.get(dedup_key)
-                if last_ts and abs(ts_val - last_ts) <= 2:
+                # Reduzir para 0.5s para evitar esconder ações rápidas, mas ainda limpar ruído do Windows
+                if last_ts and abs(ts_val - last_ts) <= 0.5:
                     continue
                 dedup_cache[dedup_key] = ts_val
 

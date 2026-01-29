@@ -18,8 +18,15 @@ class CryptoManager:
         Args:
             secret_key: Chave secreta do Flask (usada para derivar chave de criptografia)
         """
-        # Deriva uma chave Fernet a partir do secret key
-        salt = b'intranet_truenas_salt_v1'  # Salt fixo para consistência
+        # Tenta carregar o salt do ambiente, senão usa o padrão (com aviso)
+        env_salt = os.getenv('SYSTEM_SALT')
+        if env_salt:
+            salt = env_salt.encode()
+        else:
+            salt = b'intranet_truenas_salt_v1'
+            if os.getenv('FLASK_ENV') == 'production':
+                print("⚠️ AVISO DE SEGURANÇA: SYSTEM_SALT não configurado no .env. Usando salt padrão.")
+                
         kdf = PBKDF2HMAC(
             algorithm=hashes.SHA256(),
             length=32,

@@ -28,7 +28,8 @@
     {% endif %}
     {% endwith %}
 
-    <form method="POST" action="{{ url_for('user_login') }}" id="loginForm">
+    <form action="{{ url_for('user_login') }}" method="POST" id="loginForm">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="form-group">
             <label for="username" class="form-label">Usuário</label>
             <input type="text" id="username" name="username" class="form-control" placeholder="Digite seu usuário"

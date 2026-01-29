@@ -59,9 +59,14 @@ def login():
             
             session['admin_id'] = admin.id
             session['admin_username'] = admin.username
+            session['admin_name'] = admin.full_name
             session['is_admin'] = True  # Flag para exibir menu Admin
             admin.update_last_login()
             
+            if admin.must_change_password:
+                flash('Por segurança, você deve alterar sua senha no primeiro acesso.', 'warning')
+                return redirect(url_for('admin.admins_edit', admin_id=admin.id))
+
             flash(f'Bem-vindo, {admin.full_name}!', 'success')
             return redirect(url_for('admin.dashboard'))
         else:
@@ -157,8 +162,7 @@ def dashboard():
                 chart_data['folders'] = [f[0] for f in top_folders]
                 chart_data['counts'] = [f[1] for f in top_folders]
     except Exception as e:
-        print(f"Erro no dashboard: {e}")
-        pass
+        current_app.logger.error(f"Erro ao carregar dados do ES-SERVIDOR para dashboard: {e}")
     
     # Se der erro ou offline, garante que chart_data existe
     if 'chart_data' not in locals():
@@ -730,6 +734,8 @@ def admins_edit(admin_id):
             
         if password:
             target_admin.set_password(password)
+            target_admin.must_change_password = False
+            flash('Senha atualizada.', 'info')
             
         try:
             db.session.commit()

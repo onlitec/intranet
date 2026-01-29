@@ -16,6 +16,7 @@
         </div>
         <div class="card-body">
             <form method="POST" action="{{ url_for('admin.smtp_settings') }}" id="smtpForm">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="grid-2">
                     <div class="form-group">
                         <label for="smtp_server" class="form-label required">Servidor SMTP</label>
