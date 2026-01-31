@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block title %}Dispositivos Conhecidos - {{ super() }}{% endblock %}
+
+{% block content %}
+<div class="content-header">
+    <div>
+        <h1 class="content-title">Dispositivos Conhecidos</h1>
+        <p class="content-subtitle">Gerenciar inventário de máquinas, celulares e equipamentos da rede.</p>
+    </div>
+    <div class="header-actions">
+        <a href="{{ url_for('admin.monitoring_device_new') }}" class="btn btn-primary">
+            <span>+ Novo Dispositivo</span>
+        </a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Dispositivo</th>
+                        <th>MAC Address</th>
+                        <th>Categoria</th>
+                        <th>Notas</th>
+                        <th class="text-right">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for device in devices %}
+                    <tr>
+                        <td>
+                            <div class="flex items-center gap-3">
+                                <div
+                                    class="w-10 h-10 flex items-center justify-center bg-blue-50 text-xl border border-blue-100 rounded-lg">
+                                    {{ device.get_icon() }}
+                                </div>
+                                <div class="font-bold">{{ device.hostname }}</div>
+                            </div>
+                        </td>
+                        <td>
+                            <code
+                                class="text-xs text-primary bg-blue-50 px-2 py-1 rounded">{{ device.mac_address }}</code>
+                        </td>
+                        <td>
+                            <span class="badge badge-secondary">
+                                {{ device.category|capitalize }}
+                            </span>
+                        </td>
+                        <td class="text-muted text-sm">{{ device.notes or '---' }}</td>
+                        <td class="text-right">
+                            <a href="{{ url_for('admin.monitoring_device_edit', id=device.id) }}"
+                                class="btn btn-sm btn-outline-primary mr-2">Editar</a>
+                            <form action="{{ url_for('admin.delete_known_device', id=device.id) }}" method="POST"
+                                onsubmit="return confirm('Tem certeza que deseja remover este dispositivo?');"
+                                style="display:inline;">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">Remover</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5" class="text-center p-12 text-muted">
+                            <div class="text-4xl mb-4">🔌</div>
+                            <p>Nenhum dispositivo cadastrado manualmente ainda.</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,5 @@
+pytest==9.0.2
+ruff==0.14.14
+Flask-Migrate==4.1.0
+alembic==1.18.3
+

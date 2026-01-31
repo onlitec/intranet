@@ -71,12 +71,14 @@ Description=Intranet TrueNAS Integration
 After=network.target
 
 [Service]
-Type=simple
+Type=exec
 User=www-data
 Group=www-data
 WorkingDirectory=/opt/intranet
+EnvironmentFile=-/opt/intranet/.env
 Environment="PATH=/opt/intranet/venv/bin"
-ExecStart=/opt/intranet/venv/bin/python app.py
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/intranet/run.sh
 Restart=always
 RestartSec=10
 
@@ -84,6 +86,28 @@ RestartSec=10
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=intranet
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+cat > /etc/systemd/system/intranet-engine.service << 'EOF'
+[Unit]
+Description=Intranet TrueNAS Monitoring Engine
+After=network.target
+
+[Service]
+Type=exec
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/intranet
+EnvironmentFile=-/opt/intranet/.env
+Environment="PATH=/opt/intranet/venv/bin"
+Environment=PYTHONUNBUFFERED=1
+Environment=SYSLOG_PORT=1514
+ExecStart=/opt/intranet/venv/bin/python /opt/intranet/run_engine.py
+Restart=always
+RestartSec=10
 
 [Install]
 WantedBy=multi-user.target
@@ -123,6 +147,9 @@ server {
     add_header X-Frame-Options "SAMEORIGIN" always;
     add_header X-Content-Type-Options "nosniff" always;
     add_header X-XSS-Protection "1; mode=block" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+    add_header Content-Security-Policy "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'" always;
 }
 
 # Uncomment lines below to enable HTTPS with SSL certificate
@@ -147,7 +174,7 @@ nginx -t
 
 echo "🔄 Reiniciando serviços..."
 systemctl daemon-reload
-systemctl enable intranet
+systemctl enable intranet intranet-engine
 systemctl restart nginx
 
 echo ""

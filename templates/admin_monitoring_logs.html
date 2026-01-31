@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+
+{% block title %}Logs de Acesso Internet{% endblock %}
+{% block page_title %}Logs de Acesso Internet{% endblock %}
+{% block page_subtitle %}Histórico detalhado de navegação e auditoria de tráfego{% endblock %}
+
+{% block content %}
+<!-- Filtros Avançados - Layout Ultra-Compacto -->
+<form method="GET" class="filters-bar">
+    <div class="filter-group">
+        <label for="filter_ip">Dispositivo</label>
+        <input id="filter_ip" type="text" name="ip" class="form-control" placeholder="IP/Hostname"
+            value="{{ filters.ip }}">
+    </div>
+    <div class="filter-group">
+        <label for="filter_site">Domínio</label>
+        <input id="filter_site" type="text" name="site" class="form-control" placeholder="google.com"
+            value="{{ filters.site }}">
+    </div>
+    <div class="filter-group">
+        <label for="filter_date_from">Início</label>
+        <input id="filter_date_from" type="date" name="date_from" class="form-control" value="{{ filters.date_from }}">
+    </div>
+    <div class="filter-group">
+        <label for="filter_date_to">Fim</label>
+        <input id="filter_date_to" type="date" name="date_to" class="form-control" value="{{ filters.date_to }}">
+    </div>
+    <div class="filter-actions">
+        <button type="submit" class="btn btn-primary btn-sm">🔍 Filtrar</button>
+    </div>
+</form>
+
+<!-- Tabela de Auditoria -->
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Histórico de Conexões Hoje</h3>
+        <div class="topbar-status">
+            <span class="status-dot"></span>
+            <span>Atualização em tempo real</span>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-container">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>🕒 Data e Hora</th>
+                        <th>💻 Dispositivo</th>
+                        <th>🌐 Website / Destino</th>
+                        <th>⌛ Duração</th>
+                        <th class="text-right">🛡️ Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in logs.items %}
+                    <tr>
+                        <td class="timestamp-badge">
+                            {{ log.timestamp.strftime('%d/%m/%Y') }}<br>
+                            <span class="text-lg font-bold text-primary">{{ log.timestamp.strftime('%H:%M:%S') }}</span>
+                        </td>
+                        <td>
+                            <div class="log-device">
+                                {% set known = None %}
+                                {% if log.mac_address %}
+                                {# Nota: Idealmente isso seria feito no backend, mas como o cache de dispositivos já
+                                está no motor, podemos fazer um lookup simples se passarmos os devices conhecidos para o
+                                template ou apenas usar o hostname que o motor já resolveu. No entanto, para o ícone
+                                customizado, vamos assumir que o hostname é o do dispositivo conhecido. #}
+                                {% endif %}
+                                <div class="device-icon">
+                                    {% set category = known_devices.get(log.mac_address) %}
+                                    {% if category == 'pc' %}💻
+                                    {% elif category == 'smartphone' %}📱
+                                    {% elif category == 'camera' %}📷
+                                    {% elif category == 'pabx' %}☎️
+                                    {% elif category == 'server' %}🖥️
+                                    {% elif category == 'other' %}🔌
+                                    {% elif log.hostname and 'DESKTOP' in log.hostname %}💻
+                                    {% elif log.hostname and 'SMARTPHONE' in log.hostname %}📱
+                                    {% else %}💻{% endif %}
+                                </div>
+                                <div>
+                                    <div class="font-bold flex items-center gap-2">
+                                        {% if log.hostname %}
+                                        {{ log.hostname }}
+                                        {% if log.mac_address %}<span class="badge badge-primary badge-xs">Known</span>{% endif %}
+                                        {% elif log.mac_address %}
+                                        {{ log.mac_address }} <span class="text-muted text-xs">({{ log.ip_address
+                                            }})</span>
+                                        {% else %}
+                                        {{ log.ip_address }}
+                                        {% endif %}
+                                    </div>
+                                    {% if log.hostname %}
+                                    <div class="flex items-center gap-2 mt-1">
+                                        <code class="text-xs">{{ log.ip_address }}</code>
+                                        {% if log.mac_address %}
+                                        <code class="text-xs">{{ log.mac_address }}</code>
+                                        {% endif %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="log-site">
+                                <span class="site-icon">🔗</span>
+                                <div class="domain-text" title="{{ log.full_url or log.website }}">
+                                    {{ log.website }}
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="badge badge-secondary">{{ log.duration or '0' }}s</span>
+                        </td>
+                        <td class="text-right">
+                            {% if log.action == 'allowed' %}
+                            <span class="badge badge-success">✅ Permitido</span>
+                            {% else %}
+                            <span class="badge badge-error">🚫 Bloqueado</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5" class="text-center p-12">
+                            <div class="text-4xl mb-4">🔎</div>
+                            <div class="text-lg font-bold">Nenhum registro encontrado</div>
+                            <p class="text-muted">Tente ajustar seus filtros para encontrar o que procura.</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Paginação Profissional -->
+    <div class="card-footer pagination-footer">
+        <div class="text-muted text-sm font-medium">
+            Mostrando <strong>{{ (logs.page - 1) * logs.per_page + 1 if logs.total > 0 else 0 }}</strong> a <strong>{{
+                (logs.page - 1) * logs.per_page + logs.items|length }}</strong> de <strong>{{ logs.total }}</strong>
+            logs
+        </div>
+        <div class="flex items-center gap-2">
+            {% if logs.has_prev %}
+            <a href="{{ url_for('admin.monitoring_logs', page=logs.prev_num, **filters) }}"
+                class="btn btn-secondary btn-sm">
+                ← Anterior
+            </a>
+            {% endif %}
+
+            <div class="flex items-center px-4 py-2 font-bold text-sm bg-card border rounded-md">
+                Página {{ logs.page }} / {{ logs.pages }}
+            </div>
+
+            {% if logs.has_next %}
+            <a href="{{ url_for('admin.monitoring_logs', page=logs.next_num, **filters) }}"
+                class="btn btn-secondary btn-sm">
+                Próximo →
+            </a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

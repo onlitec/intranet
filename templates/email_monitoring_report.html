@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: sans-serif;
+            background-color: #f4f7f6;
+            color: #333;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 20px auto;
+            background: #fff;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .header {
+            background: #1e3a8a;
+            color: #fff;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .stat-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: #f8fafc;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            border: 1px solid #e2e8f0;
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #1e3a8a;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #64748b;
+            text-transform: uppercase;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        th {
+            text-align: left;
+            font-size: 12px;
+            color: #64748b;
+            border-bottom: 2px solid #e2e8f0;
+            padding: 10px;
+        }
+
+        td {
+            padding: 10px;
+            border-bottom: 1px solid #f1f5f9;
+            font-size: 14px;
+        }
+
+        .footer {
+            text-align: center;
+            padding: 20px;
+            font-size: 12px;
+            color: #94a3b8;
+        }
+
+        .badge {
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            background: #dcfce7;
+            color: #166534;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Relatório de Acesso à Internet</h1>
+            <p>{{ report_name }}</p>
+        </div>
+        <div class="content">
+            <p>Resumo de navegação entre <b>{{ start_date }}</b> e <b>{{ end_date }}</b>.</p>
+
+            <div style="margin-bottom: 30px;">
+                <h3 style="border-left: 4px solid #1e3a8a; padding-left: 10px;">📊 Estatísticas Gerais</h3>
+                <div style="display: flex; gap: 10px;">
+                    <div style="flex: 1; background: #f8fafc; padding: 15px; border-radius: 8px; text-align: center;">
+                        <div style="font-size: 20px; font-weight: bold;">{{ stats.total_requests }}</div>
+                        <div style="font-size: 11px; color: #64748b;">REQUISIÇÕES</div>
+                    </div>
+                    <div style="flex: 1; background: #f8fafc; padding: 15px; border-radius: 8px; text-align: center;">
+                        <div style="font-size: 20px; font-weight: bold;">{{ stats.unique_devices }}</div>
+                        <div style="font-size: 11px; color: #64748b;">DISPOSITIVOS</div>
+                    </div>
+                </div>
+            </div>
+
+            <h3 style="border-left: 4px solid #1e3a8a; padding-left: 10px;">🌐 Top 10 Sites Mais Acessados</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Website</th>
+                        <th style="text-align: right;">Acessos</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for site, count in top_sites %}
+                    <tr>
+                        <td>{{ site }}</td>
+                        <td style="text-align: right;"><b>{{ count }}</b></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+
+            <h3 style="border-left: 4px solid #1e3a8a; padding-left: 10px; margin-top: 30px;">📱 Dispositivos Mais
+                Ativos</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Dispositivo / IP</th>
+                        <th style="text-align: right;">Requisições</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for ip, host, count in top_devices %}
+                    <tr>
+                        <td>{{ host or ip }} <br><small style="color: #64748b;">{{ ip }}</small></td>
+                        <td style="text-align: right;"><b>{{ count }}</b></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="footer">
+            <p>Gerado por {{ settings.site_title }} Intranet</p>
+        </div>
+    </div>
+</body>
+
+</html>

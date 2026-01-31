@@ -62,8 +62,11 @@ def create_env_file():
         print_error("API Key é obrigatória!")
         return False
     
-    # Gerar secret key
+    # Gerar secret key e segredos de bootstrap/cripto
     secret_key = generate_secret_key()
+    system_salt = secrets.token_urlsafe(24)
+    bootstrap_token = secrets.token_urlsafe(24)
+    intranet_master_key = secrets.token_urlsafe(32)
     
     # Ambiente
     environment = input("\nAmbiente (development/production) [production]: ").strip() or "production"
@@ -81,6 +84,14 @@ FLASK_PORT=5000
 
 # Configurações de Log
 LOG_LEVEL=INFO
+
+# Segurança/Criptografia (obrigatório em produção)
+SYSTEM_SALT={system_salt}
+# Opcional: chave mestra para criptografar credenciais (se ausente, usa FLASK_SECRET_KEY)
+INTRANET_MASTER_KEY={intranet_master_key}
+
+# Bootstrap do primeiro administrador (defina e apague após criar o admin)
+BOOTSTRAP_TOKEN={bootstrap_token}
 """
     
     # Salvar arquivo

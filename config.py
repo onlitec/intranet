@@ -29,6 +29,13 @@ SESSION_COOKIE_SECURE = FLASK_ENV == 'production'  # HTTPS apenas em produção
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = 'Lax'
 
+# Sessão server-side (recomendado): evita gravar dados sensíveis no cookie
+# Opções: filesystem (default), redis (futuro)
+SESSION_TYPE = os.getenv('SESSION_TYPE', 'filesystem')
+SESSION_FILE_DIR = os.getenv('SESSION_FILE_DIR', os.path.join(os.path.dirname(__file__), '.flask_session'))
+SESSION_PERMANENT = True
+SESSION_USE_SIGNER = True
+
 # Configurações de API
 API_TIMEOUT = 10  # Timeout para chamadas à API ES-SERVIDOR (segundos)
 API_RETRY_ATTEMPTS = 2  # Tentativas de retry em caso de falha
@@ -49,3 +56,11 @@ if not ESSERVIDOR_API_KEY and FLASK_ENV == 'production':
 
 if ESSERVIDOR_IP == '192.168.1.100' and FLASK_ENV == 'production':
     print("⚠️  AVISO: Usando IP padrão do ES-SERVIDOR. Configure ESSERVIDOR_IP no .env")
+
+# Segurança: impedir secret key fraca/padrão em produção
+if FLASK_ENV == 'production':
+    if not FLASK_SECRET_KEY or FLASK_SECRET_KEY == 'dev-secret-key-change-in-production' or len(FLASK_SECRET_KEY) < 32:
+        raise ValueError("FLASK_SECRET_KEY fraca/padrão em produção. Gere uma chave forte no .env.")
+
+    if not os.getenv('SYSTEM_SALT'):
+        raise ValueError("SYSTEM_SALT não configurado em produção. Defina no .env para criptografia de credenciais.")

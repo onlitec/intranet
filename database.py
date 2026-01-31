@@ -18,6 +18,10 @@ class CryptoManager:
         Args:
             secret_key: Chave secreta do Flask (usada para derivar chave de criptografia)
         """
+        # Preferir uma master key dedicada para criptografia de credenciais.
+        # Se ausente, usa a SECRET_KEY do Flask (retrocompatível).
+        base_secret = os.getenv('INTRANET_MASTER_KEY') or secret_key
+
         # Tenta carregar o salt do ambiente, senão usa o padrão (com aviso)
         env_salt = os.getenv('SYSTEM_SALT')
         if env_salt:
@@ -33,7 +37,7 @@ class CryptoManager:
             salt=salt,
             iterations=100000,
         )
-        key = base64.urlsafe_b64encode(kdf.derive(secret_key.encode()))
+        key = base64.urlsafe_b64encode(kdf.derive(base_secret.encode()))
         self.fernet = Fernet(key)
     
     def encrypt(self, plaintext: str) -> str:

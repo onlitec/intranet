@@ -10,6 +10,9 @@ from database import encrypt_api_key, decrypt_api_key
 from esservidor_api import ESSERVIDORAPI
 from collections import Counter
 import config
+from werkzeug.utils import secure_filename
+import os
+import secrets
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
@@ -37,6 +40,10 @@ def get_current_admin():
 @admin_bp.route('/login', methods=['GET', 'POST'])
 def login():
     """Página de login do administrador"""
+
+    # Se não existe nenhum admin ainda, direciona para bootstrap seguro
+    if AdminUser.query.count() == 0:
+        return redirect(url_for('admin.bootstrap'))
     
     # Se já logado como admin, redireciona
     if 'admin_id' in session:
@@ -73,6 +80,68 @@ def login():
             flash('Usuário ou senha inválidos.', 'error')
     
     return render_template('admin_login.html')
+
+
+@admin_bp.route('/bootstrap', methods=['GET', 'POST'])
+def bootstrap():
+    """
+    Cria o primeiro administrador do sistema (apenas quando ainda não existem admins).
+    Protegido por BOOTSTRAP_TOKEN no .env.
+    """
+    # Se já existe admin, bootstrap não é mais permitido
+    if AdminUser.query.count() > 0:
+        return redirect(url_for('admin.login'))
+
+    expected = os.getenv('BOOTSTRAP_TOKEN', '')
+    if not expected:
+        flash('Bootstrap desabilitado: defina BOOTSTRAP_TOKEN no .env.', 'error')
+        return render_template('admin_bootstrap.html')
+
+    if request.method == 'POST':
+        provided = (request.form.get('bootstrap_token') or '').strip()
+        if not secrets.compare_digest(provided, expected):
+            flash('Token de bootstrap inválido.', 'error')
+            return render_template('admin_bootstrap.html')
+
+        username = (request.form.get('username') or '').strip()
+        full_name = (request.form.get('full_name') or '').strip()
+        password = (request.form.get('password') or '').strip()
+        email = (request.form.get('email') or '').strip()
+
+        if not username or not full_name or not password:
+            flash('Preencha usuário, nome e senha.', 'error')
+            return render_template('admin_bootstrap.html')
+
+        if len(password) < 10:
+            flash('A senha deve ter pelo menos 10 caracteres.', 'error')
+            return render_template('admin_bootstrap.html')
+
+        try:
+            admin = AdminUser(
+                username=username,
+                full_name=full_name,
+                email=email or None,
+                must_change_password=False,
+                is_active=True
+            )
+            admin.set_password(password)
+            db.session.add(admin)
+            db.session.commit()
+
+            # Login imediato
+            session['admin_id'] = admin.id
+            session['admin_username'] = admin.username
+            session['admin_name'] = admin.full_name
+            session['is_admin'] = True
+            admin.update_last_login()
+
+            flash('Administrador criado com sucesso!', 'success')
+            return redirect(url_for('admin.dashboard'))
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Erro ao criar admin: {e}', 'error')
+
+    return render_template('admin_bootstrap.html')
 
 
 @admin_bp.route('/logout', methods=['GET', 'POST'])
@@ -113,61 +182,81 @@ def dashboard():
     # Últimos acessos
     recent_logs = AccessLog.query.order_by(AccessLog.timestamp.desc()).limit(10).all()
     
-    # Verificar conexão e obter stats do ES-SERVIDOR
-    esservidor_online = False
-    server_stats = {'total_users': 0, 'smb_users': 0, 'shares': 0}
-    try:
-        esservidor = ESSERVIDORAPI(config.ESSERVIDOR_API_URL, config.ESSERVIDOR_API_KEY, config.API_TIMEOUT)
-        esservidor_online = esservidor.check_connection()
-        
-        if esservidor_online:
-            # Obter usuários do servidor
-            success, users = esservidor.get_all_users()
-            if success:
-                non_builtin = [u for u in users if not u.get('builtin', False)]
-                server_stats['total_users'] = len(non_builtin)
-                server_stats['smb_users'] = len([u for u in non_builtin if u.get('smb', False)])
-            
-            # Obter compartilhamentos
-            success, shares = esservidor.get_smb_shares()
-            if success:
-                server_stats['shares'] = len(shares)
-
-            # --- DADOS PARA O GRÁFICO ---
-            _, audit_data = esservidor.get_audit_logs(limit=1000)
-            chart_data = {
-                'labels': ['Acessos', 'Edições', 'Criações', 'Deletados', 'Negados'],
-                'action_counts': [0, 0, 0, 0, 0],
-                'folders': [],
-                'counts': []
-            }
-            
-            if isinstance(audit_data, list):
-                path_counter = Counter()
-                for log in audit_data:
-                    action = log.get('action', '')
-                    if 'Acessou' in action: chart_data['action_counts'][0] += 1
-                    elif 'Editou' in action: chart_data['action_counts'][1] += 1
-                    elif 'Criou' in action: chart_data['action_counts'][2] += 1
-                    elif 'Deletou' in action: chart_data['action_counts'][3] += 1
-                    elif 'Acesso Negado' in action: chart_data['action_counts'][4] += 1
-                    
-                    raw_path = log.get('path', '')
-                    if raw_path and raw_path != 'N/A':
-                        root_folder = raw_path.split('/')[0]
-                        path_counter[root_folder] += 1
-                
-                # Top 5 pastas
-                top_folders = path_counter.most_common(5)
-                chart_data['folders'] = [f[0] for f in top_folders]
-                chart_data['counts'] = [f[1] for f in top_folders]
-    except Exception as e:
-        current_app.logger.error(f"Erro ao carregar dados do ES-SERVIDOR para dashboard: {e}")
+    # --- CACHE DE API DO ES-SERVIDOR (60s) ---
+    now_ts = datetime.utcnow().timestamp()
+    cache = getattr(current_app, '_esservidor_cache', {})
     
-    # Se der erro ou offline, garante que chart_data existe
-    if 'chart_data' not in locals():
+    if 'data' in cache and now_ts - cache['timestamp'] < 60:
+        server_stats = cache['data']['server_stats']
+        esservidor_online = cache['data']['esservidor_online']
+        chart_data = cache['data']['chart_data']
+    else:
+        # Verificar conexão e obter stats do ES-SERVIDOR
+        esservidor_online = False
+        server_stats = {'total_users': 0, 'smb_users': 0, 'shares': 0}
         chart_data = {'labels': [], 'action_counts': [], 'folders': [], 'counts': []}
-    
+        
+        try:
+            # Usa um timeout menor (3s) para o dashboard não travar
+            esservidor = ESSERVIDORAPI(config.ESSERVIDOR_API_URL, config.ESSERVIDOR_API_KEY, 3)
+            esservidor_online = esservidor.check_connection()
+            
+            if esservidor_online:
+                success, users = esservidor.get_all_users()
+                if success:
+                    non_builtin = [u for u in users if not u.get('builtin', False)]
+                    server_stats['total_users'] = len(non_builtin)
+                    server_stats['smb_users'] = len([u for u in non_builtin if u.get('smb', False)])
+                
+                success, shares = esservidor.get_smb_shares()
+                if success:
+                    server_stats['shares'] = len(shares)
+
+                # Auditoria
+                _, audit_data = esservidor.get_audit_logs(limit=300) # Limite menor para rapidez
+                chart_data = {
+                    'labels': ['Acessos', 'Edições', 'Criações', 'Deletados', 'Negados'],
+                    'action_counts': [0, 0, 0, 0, 0],
+                    'folders': [],
+                    'counts': []
+                }
+                
+                if isinstance(audit_data, list):
+                    path_counter = Counter()
+                    for log in audit_data:
+                        action = log.get('action', '')
+                        if 'Acessou' in action: chart_data['action_counts'][0] += 1
+                        elif 'Editou' in action: chart_data['action_counts'][1] += 1
+                        elif 'Criou' in action: chart_data['action_counts'][2] += 1
+                        elif 'Deletou' in action: chart_data['action_counts'][3] += 1
+                        elif 'Negado' in action: chart_data['action_counts'][4] += 1
+                        
+                        p = log.get('path', 'N/A')
+                        if p != 'N/A':
+                            # Extrai a primeira pasta após a raiz (se houver)
+                            # Ex: /share/folder1/file.txt -> share
+                            # Ex: share/folder1/file.txt -> share
+                            parts = [part for part in p.split('/') if part]
+                            if parts:
+                                folder = parts[0]
+                                path_counter[folder] += 1
+                    
+                    top_paths = path_counter.most_common(5)
+                    chart_data['folders'] = [p[0] for p in top_paths]
+                    chart_data['counts'] = [p[1] for p in top_paths]
+            
+            # Salva no cache do app
+            current_app._esservidor_cache = {
+                'timestamp': now_ts,
+                'data': {
+                    'server_stats': server_stats,
+                    'esservidor_online': esservidor_online,
+                    'chart_data': chart_data
+                }
+            }
+        except Exception as e:
+            current_app.logger.error(f"Erro no dashboard ES-SERVIDOR: {e}")
+
     return render_template('admin_dashboard.html', 
                          admin=admin, 
                          stats=stats,
@@ -916,6 +1005,7 @@ def reports_new():
         new_sched = ReportSchedule(
             name=name,
             frequency=frequency,
+            report_type=request.form.get('report_type', 'server_activity'),
             custom_days=int(request.form.get('custom_days', 0)) if frequency == 'custom' else 0,
             recipients=recipients
         )
@@ -949,14 +1039,11 @@ def reports_edit(schedule_id):
     if request.method == 'POST':
         schedule.name = request.form.get('name', '').strip()
         schedule.frequency = request.form.get('frequency', 'daily')
+        schedule.report_type = request.form.get('report_type', 'server_activity')
+        schedule.custom_days = int(request.form.get('custom_days', 0)) if schedule.frequency == 'custom' else 0
         schedule.recipients = request.form.get('recipients', '').strip()
         schedule.is_active = request.form.get('is_active') == 'on'
         
-        if schedule.frequency == 'custom':
-            schedule.custom_days = int(request.form.get('custom_days', 0))
-        else:
-            schedule.custom_days = 0
-            
         try:
             db.session.commit()
             flash('Agendamento atualizado!', 'success')
@@ -989,168 +1076,464 @@ def send_report(schedule):
     from email.mime.text import MIMEText
     from email.mime.multipart import MIMEMultipart
     from database import decrypt_api_key
-    from esservidor_api import ESSERVIDORAPI
+    from models import SMTPConfig, InternetAccessLog, AccessLog, ReportLog
+    from collections import Counter
     
     # 1. Obter config SMTP
     smtp = SMTPConfig.query.first()
-    if not smtp:
-        return False, "Configuração SMTP não encontrada"
-    
+    if not smtp: return False, "Configuração SMTP não encontrada"
     try:
         smtp_password = decrypt_api_key(smtp.smtp_password_encrypted)
-    except:
-        return False, "Erro ao descriptografar senha SMTP"
+    except: return False, "Erro ao descriptografar senha SMTP"
     
-    # 2. Obter dados do ES-SERVIDOR (Audit Logs)
-    from config import ESSERVIDOR_API_URL, ESSERVIDOR_API_KEY, API_TIMEOUT, ESSERVIDOR_IP
-    esservidor = ESSERVIDORAPI(ESSERVIDOR_API_URL, ESSERVIDOR_API_KEY, timeout=API_TIMEOUT)
-    
-    # Define o período baseado na frequência (Usando UTC para consistência com o ES-SERVIDOR)
+    # 2. Período
     end_date = datetime.now(timezone.utc)
-    if schedule.frequency == 'daily':
-        start_date = end_date - timedelta(days=1)
-    elif schedule.frequency == 'weekly':
-        start_date = end_date - timedelta(weeks=1)
-    elif schedule.frequency == 'monthly':
-        start_date = end_date - timedelta(days=30)
-    elif schedule.frequency == 'custom' and schedule.custom_days > 0:
-        start_date = end_date - timedelta(days=schedule.custom_days)
-    else:
-        start_date = end_date - timedelta(days=1)
+    if schedule.frequency == 'daily': start_date = end_date - timedelta(days=1)
+    elif schedule.frequency == 'weekly': start_date = end_date - timedelta(weeks=1)
+    elif schedule.frequency == 'monthly': start_date = end_date - timedelta(days=30)
+    elif schedule.frequency == 'custom' and schedule.custom_days > 0: start_date = end_date - timedelta(days=schedule.custom_days)
+    else: start_date = end_date - timedelta(days=1)
     
-    # Para busca no banco local (AccessLog usa naive UTC)
     start_date_naive = start_date.replace(tzinfo=None)
     
-    # Busca logs reais do TrueNAS se possível (Aumentado limite para cobrir período movimentado)
-    success, tn_logs = esservidor.get_audit_logs(limit=2000)
-    
-    # Busca logs locais (Login na Intranet) para complementar
-    local_logs = AccessLog.query.filter(AccessLog.timestamp >= start_date_naive).order_by(AccessLog.timestamp.desc()).limit(100).all()
-    
-    # Combinar logs para o resumo (priorizando TrueNAS, mas incluindo locais se desejar)
-    combined_logs = []
-    
-    # Adiciona logs do TrueNAS processados dentro do intervalo solicitado
-    if success and isinstance(tn_logs, list):
-        for entry in tn_logs:
-            # O sistema agora retorna objeto datetime c/ timezone em 'dt'
-            log_dt = entry.get('dt')
-            if log_dt:
-                # Filtragem rigorosa por data
-                if start_date <= log_dt <= end_date:
-                    # Normaliza: 'timestamp' no combined_logs deve ser objeto p/ ordenação
-                    entry['timestamp'] = log_dt.replace(tzinfo=None) # Volta p/ naive UTC p/ compatibilidade c/ local_logs
+    # 3. Gerar conteúdo baseado no tipo
+    if schedule.report_type == 'internet_monitoring':
+        # Relatório de Internet
+        total_requests = InternetAccessLog.query.filter(InternetAccessLog.timestamp >= start_date_naive).count()
+        unique_devices = db.session.query(InternetAccessLog.ip_address).filter(InternetAccessLog.timestamp >= start_date_naive).distinct().count()
+        
+        top_sites = db.session.query(InternetAccessLog.website, db.func.count(InternetAccessLog.id).label('total'))\
+            .filter(InternetAccessLog.timestamp >= start_date_naive)\
+            .group_by(InternetAccessLog.website)\
+            .order_by(db.desc('total')).limit(10).all()
+            
+        top_devices = db.session.query(InternetAccessLog.ip_address, InternetAccessLog.hostname, db.func.count(InternetAccessLog.id).label('total'))\
+            .filter(InternetAccessLog.timestamp >= start_date_naive)\
+            .group_by(InternetAccessLog.ip_address, InternetAccessLog.hostname)\
+            .order_by(db.desc('total')).limit(10).all()
+            
+        html_body = render_template('email_monitoring_report.html',
+                                   report_name=schedule.name,
+                                   start_date=start_date.strftime('%d/%m/%Y'),
+                                   end_date=end_date.strftime('%d/%m/%Y'),
+                                   stats={'total_requests': total_requests, 'unique_devices': unique_devices},
+                                   top_sites=top_sites,
+                                   top_devices=top_devices)
+    else:
+        # Relatório de Servidor (Código original refatorado)
+        from esservidor_api import ESSERVIDORAPI
+        from config import ESSERVIDOR_API_URL, ESSERVIDOR_API_KEY, API_TIMEOUT
+        esservidor = ESSERVIDORAPI(ESSERVIDOR_API_URL, ESSERVIDOR_API_KEY, timeout=API_TIMEOUT)
+        
+        success, tn_logs = esservidor.get_audit_logs(limit=2000)
+        local_logs = AccessLog.query.filter(AccessLog.timestamp >= start_date_naive).order_by(AccessLog.timestamp.desc()).limit(100).all()
+        
+        combined_logs = []
+        if success and isinstance(tn_logs, list):
+            for entry in tn_logs:
+                log_dt = entry.get('dt')
+                if log_dt and start_date <= log_dt <= end_date:
+                    entry['timestamp'] = log_dt.replace(tzinfo=None)
                     combined_logs.append(entry)
+        
+        for l in local_logs:
+            combined_logs.append({
+                'username': l.username, 'action': f'Login Intranet' if l.action == 'login' else l.action,
+                'success': True if l.action == 'login' else l.success, 'timestamp': l.timestamp,
+                'path': 'Painel Web' 
+            })
+        combined_logs.sort(key=lambda x: x.get('timestamp') or datetime.min, reverse=True)
+        
+        activity_counts = Counter()
+        folder_counts = Counter()
+        for log in combined_logs:
+            act = log.get('action', '')
+            if 'Acessou' in act: activity_counts['Acessou'] += 1
+            elif 'Editou' in act: activity_counts['Editou'] += 1
+            elif 'Criou' in act: activity_counts['Criou'] += 1
+            elif 'Deletou' in act: activity_counts['Deletou'] += 1
+            elif 'Acesso Negado' in act: activity_counts['Negados'] += 1
             
-    # Adiciona logs locais formatados como dicionários compatíveis
-    for l in local_logs:
-        # Para o relatório, não marcamos erro de senha como "ERRO" de sistema/permissão
-        report_success = True if l.action == 'login' else l.success
+            p = log.get('path', '')
+            if p and p not in ['N/A', 'Painel Web', '.', '']:
+                root = p.split('/')[0] if '/' in p else p
+                folder_counts[root] += 1
         
-        combined_logs.append({
-            'username': l.username,
-            'action': f'Login Intranet ({l.details or ""})' if l.action == 'login' else l.action,
-            'success': report_success,
-            'timestamp': l.timestamp, # Já é naive datetime UTC
-            'source': 'Intranet',
-            'path': 'Painel Web' 
-        })
+        total_acts = sum(activity_counts.values()) or 1
+        activity_stats = [
+            {'label': 'Acessos', 'count': activity_counts['Acessou'], 'pct': int((activity_counts['Acessou']/total_acts)*100), 'color': '#3b82f6'},
+            {'label': 'Edições', 'count': activity_counts['Editou'], 'pct': int((activity_counts['Editou']/total_acts)*100), 'color': '#10b981'},
+            {'label': 'Criações', 'count': activity_counts['Criou'], 'pct': int((activity_counts['Criações'] if 'Criações' in activity_counts else activity_counts['Criou'])/total_acts*100), 'color': '#f59e0b'},
+            {'label': 'Deletados', 'count': activity_counts['Deletou'], 'pct': int((activity_counts['Deletou']/total_acts)*100), 'color': '#ef4444'},
+            {'label': 'Negados', 'count': activity_counts['Negados'], 'pct': int((activity_counts['Negados']/total_acts)*100), 'color': '#6366f1'}
+        ]
         
-    # Reordenar por timestamp desc
-    combined_logs.sort(key=lambda x: x.get('timestamp') if isinstance(x.get('timestamp'), datetime) else datetime.min, reverse=True)
-    
-    # --- CÁLCULO DE ESTATÍSTICAS VISUAIS ---
-    activity_counts = Counter() # Acessou, Editou, etc.
-    folder_counts = Counter()   # Pastas Top 5
-    
-    for log in combined_logs:
-        # Contagem de Ações
-        act = log.get('action', '')
-        if 'Acessou' in act: activity_counts['Acessou'] += 1
-        elif 'Editou' in act: activity_counts['Editou'] += 1
-        elif 'Criou' in act: activity_counts['Criou'] += 1
-        elif 'Deletou' in act: activity_counts['Deletou'] += 1
-        elif 'Acesso Negado' in act: activity_counts['Negados'] += 1
+        top_folders = [{'label': f[0], 'count': f[1], 'pct': int((f[1]/max([x[1] for x in folder_counts.most_common(5)] or [1]))*100)} for f in folder_counts.most_common(5)]
         
-        # Contagem de Pastas (primeiro nível do path)
-        p = log.get('path', '')
-        if p and p not in ['N/A', 'Painel Web', '.', '']:
-            # Pega o primeiro diretório antes da primeira /
-            root = p.split('/')[0] if '/' in p else p
-            folder_counts[root] += 1
-            
-    # Preparar dados para o template
-    total_acts = sum(activity_counts.values()) or 1
-    activity_stats = [
-        {'label': 'Acessos', 'count': activity_counts['Acessou'], 'pct': round((activity_counts['Acessou']/total_acts)*100), 'color': '#3b82f6'},
-        {'label': 'Edições', 'count': activity_counts['Editou'], 'pct': round((activity_counts['Editou']/total_acts)*100), 'color': '#10b981'},
-        {'label': 'Criações', 'count': activity_counts['Criou'], 'pct': round((activity_counts['Criou']/total_acts)*100), 'color': '#f59e0b'},
-        {'label': 'Deletados', 'count': activity_counts['Deletou'], 'pct': round((activity_counts['Deletou']/total_acts)*100), 'color': '#ef4444'},
-        {'label': 'Negados', 'count': activity_counts['Negados'], 'pct': round((activity_counts['Negados']/total_acts)*100), 'color': '#6366f1'} # Indigo/Roxo para destacar
-    ]
-    
-    top_folders_raw = folder_counts.most_common(5)
-    max_folder_count = top_folders_raw[0][1] if top_folders_raw else 1
-    folder_stats = [
-        {'label': f[0], 'count': f[1], 'pct': round((f[1]/max_folder_count)*100)} 
-        for f in top_folders_raw
-    ]
-
-    # Estatísticas básicas para o relatório (agora incluindo logins locais)
-    stats = {
-        'total': len(combined_logs),
-        'success': len([l for l in combined_logs if l.get('success', True)]),
-        'failure': len([l for l in combined_logs if not l.get('success', False)])
-    }
-    
-    # 3. Gerar HTML do e-mail
-    try:
+        stats = {'total': len(combined_logs), 'success': len([l for l in combined_logs if l.get('success', True)]), 'failure': len([l for l in combined_logs if not l.get('success', False)])}
+        
         html_body = render_template('email_report_template.html',
-                                  report_name=schedule.name,
-                                  server_info="ES-SERVIDOR",
-                                  start_date=start_date.strftime('%d/%m/%Y'),
-                                  end_date=end_date.strftime('%d/%m/%Y'),
-                                  stats=stats,
-                                  activity_stats=activity_stats,
-                                  folder_stats=folder_stats,
-                                  recent_logs=combined_logs[:15])
-    except Exception as e:
-        current_app.logger.error(f"Erro ao gerar template de e-mail: {e}")
-        return False, f"Erro ao gerar template HTML: {str(e)}"
-    
+                                  report_name=schedule.name, server_info="ES-SERVIDOR",
+                                  start_date=start_date.strftime('%d/%m/%Y'), end_date=end_date.strftime('%d/%m/%Y'),
+                                  stats=stats, activity_stats=activity_stats, folder_stats=top_folders, recent_logs=combined_logs[:15])
+
     # 4. Enviar E-mail
-    error_msgs = []
     recipients = [r.strip() for r in schedule.recipients.split(',') if r.strip()]
-    
     for recipient in recipients:
         try:
             msg = MIMEMultipart()
             msg['From'] = f"{smtp.from_name} <{smtp.from_email}>"
             msg['To'] = recipient
-            msg['Subject'] = f"Relatório de Atividades: {schedule.name}"
-            
+            msg['Subject'] = f"Relatório: {schedule.name}"
             msg.attach(MIMEText(html_body, 'html'))
             
-            server = smtplib.SMTP(smtp.smtp_server, smtp.smtp_port, timeout=20)
-            if smtp.use_tls:
-                server.starttls()
+            with smtplib.SMTP(smtp.smtp_server, smtp.smtp_port, timeout=20) as server:
+                if smtp.use_tls: server.starttls()
+                if smtp.smtp_user and smtp_password: server.login(smtp.smtp_user, smtp_password)
+                server.send_message(msg)
             
-            if smtp.smtp_user and smtp_password:
-                server.login(smtp.smtp_user, smtp_password)
-            
-            server.send_message(msg)
-            server.quit()
-            
-            # Log de sucesso
-            log = ReportLog(schedule_id=schedule.id, recipient=recipient, status='success')
-            db.session.add(log)
+            db.session.add(ReportLog(schedule_id=schedule.id, recipient=recipient, status='success'))
         except Exception as e:
-            error_msgs.append(f"{recipient}: {str(e)}")
-            log = ReportLog(schedule_id=schedule.id, recipient=recipient, status='failure', error_message=str(e))
-            db.session.add(log)
+            db.session.add(ReportLog(schedule_id=schedule.id, recipient=recipient, status='failure', error_message=str(e)))
             
     db.session.commit()
-    
-    if error_msgs:
-        return False, f"Erros no envio: {'; '.join(error_msgs)}"
     return True, "Enviado com sucesso"
+
+
+# ==================== CONFIGURAÇÃO DA PLATAFORMA ====================
+
+@admin_bp.route('/settings/platform', methods=['GET', 'POST'])
+@admin_required
+def platform_settings():
+    """Configurações visuais da plataforma (Título, Logo, Favicon)"""
+    from models import SystemSetting
+    admin = get_current_admin()
+    
+    if request.method == 'POST':
+        title = request.form.get('site_title', 'ES-SERVIDOR').strip()
+        SystemSetting.set_value('site_title', title)
+        
+        # Upload de Logo
+        logo_file = request.files.get('site_logo')
+        if logo_file and logo_file.filename:
+            filename = secure_filename(f"logo_{logo_file.filename}")
+            filepath = os.path.join(current_app.static_folder, 'images', filename)
+            logo_file.save(filepath)
+            SystemSetting.set_value('site_logo', f'/static/images/{filename}')
+            
+        # Upload de Favicon
+        favicon_file = request.files.get('site_favicon')
+        if favicon_file and favicon_file.filename:
+            filename = secure_filename(f"fav_{favicon_file.filename}")
+            filepath = os.path.join(current_app.static_folder, 'images', filename)
+            favicon_file.save(filepath)
+            SystemSetting.set_value('site_favicon', f'/static/images/{filename}')
+            
+        flash('Configurações da plataforma atualizadas com sucesso!', 'success')
+        return redirect(url_for('admin.platform_settings'))
+        
+    settings = {
+        'site_title': SystemSetting.get_value('site_title', 'ES-SERVIDOR'),
+        'site_logo': SystemSetting.get_value('site_logo', '/static/images/logo.png'),
+        'site_favicon': SystemSetting.get_value('site_favicon', '/static/images/logo.png')
+    }
+    
+    return render_template('admin_platform.html', admin=admin, settings=settings)
+
+
+# ==================== MONITORAMENTO DE INTERNET ====================
+
+@admin_bp.route('/monitoring')
+@admin_required
+def monitoring_dashboard():
+    """Dashboard de monitoramento de internet enriquecido"""
+    from models import InternetAccessLog, InternetSource, KnownDevice
+    from datetime import datetime, timedelta
+    admin = get_current_admin()
+    
+    # Estatísticas rápidas
+    now = datetime.utcnow()
+    today = now.replace(hour=0, minute=0, second=0)
+    last_24h = now - timedelta(hours=24)
+    
+    # Horas para o gráfico (últimas 24h) - Otimizado em 1 única query
+    from sqlalchemy import func
+    
+    hourly_counts = db.session.query(
+        func.strftime('%H:00', InternetAccessLog.timestamp).label('hour'),
+        func.count(InternetAccessLog.id).label('count')
+    ).filter(
+        InternetAccessLog.timestamp >= last_24h
+    ).group_by('hour').all()
+    
+    # Mapeia resultados para o formato esperado pelo Chart.js (preservando ordem cronológica)
+    counts_map = {h: c for h, c in hourly_counts}
+    hours_data = []
+    labels = []
+    
+    for i in range(23, -1, -1):
+        h_label = (now - timedelta(hours=i)).strftime('%H:00')
+        labels.append(h_label)
+        hours_data.append(counts_map.get(h_label, 0))
+
+    # Identificação de dispositivos conhecidos
+    known_macs = [d.mac_address for d in KnownDevice.query.all()]
+    
+    # Total de requisições por dispositivo (para separar conhecido/desconhecido)
+    device_requests = db.session.query(InternetAccessLog.mac_address, db.func.count(InternetAccessLog.id))\
+        .filter(InternetAccessLog.timestamp >= today)\
+        .group_by(InternetAccessLog.mac_address).all()
+    
+    known_count = 0
+    unknown_count = 0
+    for mac, count in device_requests:
+        if mac in known_macs:
+            known_count += count
+        else:
+            unknown_count += count
+
+    # Distribuição por categoria (apenas conhecidos)
+    category_data = db.session.query(KnownDevice.category, db.func.count(InternetAccessLog.id))\
+        .join(InternetAccessLog, KnownDevice.mac_address == InternetAccessLog.mac_address)\
+        .filter(InternetAccessLog.timestamp >= today)\
+        .group_by(KnownDevice.category).all()
+    
+    cat_labels = [c[0].capitalize() for c in category_data]
+    cat_counts = [c[1] for c in category_data]
+
+    stats = {
+        'total_requests_today': InternetAccessLog.query.filter(InternetAccessLog.timestamp >= today).count(),
+        'active_sources': InternetSource.query.filter_by(is_active=True).count(),
+        'known_vs_unknown': [known_count, unknown_count],
+        'category_labels': cat_labels,
+        'category_data': cat_counts,
+        'top_sites': db.session.query(InternetAccessLog.website, db.func.count(InternetAccessLog.id).label('total'))\
+            .filter(InternetAccessLog.timestamp >= today, InternetAccessLog.website != None)\
+            .group_by(InternetAccessLog.website)\
+            .order_by(db.desc('total')).limit(8).all(),
+        # Separa dispositivos para filtragem
+        'known_devices_stats': [list(row) for row in db.session.query(InternetAccessLog.ip_address, InternetAccessLog.hostname, InternetAccessLog.mac_address, db.func.count(InternetAccessLog.id).label('total'))\
+            .filter(InternetAccessLog.timestamp >= today, InternetAccessLog.mac_address.in_(known_macs))\
+            .group_by(InternetAccessLog.ip_address, InternetAccessLog.hostname, InternetAccessLog.mac_address)\
+            .order_by(db.desc('total')).limit(20).all()],
+        'unknown_devices_stats': [list(row) for row in db.session.query(InternetAccessLog.ip_address, InternetAccessLog.hostname, InternetAccessLog.mac_address, db.func.count(InternetAccessLog.id).label('total'))\
+            .filter(InternetAccessLog.timestamp >= today, ~InternetAccessLog.mac_address.in_(known_macs))\
+            .group_by(InternetAccessLog.ip_address, InternetAccessLog.hostname, InternetAccessLog.mac_address)\
+            .order_by(db.desc('total')).limit(20).all()],
+        'hostname_distribution': [[row[0], row[1]] for row in db.session.query(InternetAccessLog.hostname, db.func.count(InternetAccessLog.id).label('total'))\
+            .filter(InternetAccessLog.timestamp >= today)\
+            .group_by(InternetAccessLog.hostname)\
+            .order_by(db.desc('total')).all()],
+        'chart_labels': labels,
+        'chart_data': hours_data
+    }
+    
+    # Mapa de dispositivos conhecidos para ícones
+    known_devices = {d.mac_address: d.category for d in KnownDevice.query.all()}
+    
+    return render_template('admin_monitoring_dashboard.html', admin=admin, stats=stats, known_devices=known_devices)
+
+
+@admin_bp.route('/monitoring/logs')
+@admin_required
+def monitoring_logs():
+    """Logs detalhados de acesso à internet"""
+    from models import InternetAccessLog
+    admin = get_current_admin()
+    
+    # Filtros
+    ip_filter = request.args.get('ip', '')
+    hostname_filter = request.args.get('hostname', '')
+    site_filter = request.args.get('site', '')
+    date_from = request.args.get('date_from', '')
+    date_to = request.args.get('date_to', '')
+    page = request.args.get('page', 1, type=int)
+    
+    query = InternetAccessLog.query
+    
+    if ip_filter:
+        query = query.filter(InternetAccessLog.ip_address.ilike(f'%{ip_filter}%'))
+    if hostname_filter:
+        query = query.filter(InternetAccessLog.hostname.ilike(f'%{hostname_filter}%'))
+    if site_filter:
+        query = query.filter(InternetAccessLog.website.ilike(f'%{site_filter}%'))
+    if date_from:
+        try:
+            query = query.filter(InternetAccessLog.timestamp >= datetime.strptime(date_from, '%Y-%m-%d'))
+        except: pass
+    if date_to:
+        try:
+            query = query.filter(InternetAccessLog.timestamp < datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1))
+        except: pass
+        
+    logs = query.order_by(InternetAccessLog.timestamp.desc()).paginate(page=page, per_page=50)
+    
+    # Mapa de dispositivos conhecidos para ícones corretos
+    from models import KnownDevice
+    known_devices = {d.mac_address: d.category for d in KnownDevice.query.all()}
+    
+    return render_template('admin_monitoring_logs.html', admin=admin, logs=logs, known_devices=known_devices, filters=request.args)
+
+
+@admin_bp.route('/monitoring/sources', methods=['GET', 'POST'])
+@admin_required
+def monitoring_sources():
+    """Gerenciamento de fontes de monitoramento (Roteadores/Proxies)"""
+    from models import InternetSource
+    admin = get_current_admin()
+    
+    if request.method == 'POST':
+        name = request.form.get('name')
+        stype = request.form.get('source_type')
+        provider = request.form.get('provider')
+        host = request.form.get('host')
+        port = request.form.get('port', type=int)
+        username = request.form.get('username')
+        password = request.form.get('password') # Senha ou API Key
+        
+        from core.services.security import encrypt_credential
+        
+        # Cria a fonte com os parâmetros de conexão
+        source = InternetSource(
+            name=name,
+            source_type=stype,
+            provider=provider,
+            host=host,
+            port=port,
+            username=username,
+            password_encrypted=encrypt_credential(password),
+            is_active=True
+        )
+        db.session.add(source)
+        db.session.commit()
+        flash(f'Integração {name} ({provider}) configurada com sucesso!', 'success')
+        return redirect(url_for('admin.monitoring_sources'))
+        
+    sources = InternetSource.query.all()
+    return render_template('admin_monitoring_sources.html', admin=admin, sources=sources)
+
+
+@admin_bp.route('/monitoring/sources/delete/<int:id>', methods=['POST'])
+@admin_required
+def delete_monitoring_source(id):
+    """Exclui uma fonte de monitoramento"""
+    from models import InternetSource
+    source = InternetSource.query.get_or_404(id)
+    
+    # Se quiser ser rigoroso, pode apagar logs vinculados também
+    # InternetAccessLog.query.filter_by(source_id=id).delete()
+    
+    db.session.delete(source)
+    db.session.commit()
+    flash('Fonte de monitoramento removida com sucesso.', 'success')
+    return redirect(url_for('admin.monitoring_sources'))
+
+
+# ==================== DISPOSITIVOS CONHECIDOS ====================
+
+@admin_bp.route('/monitoring/devices')
+@admin_required
+def monitoring_devices():
+    """Lista de dispositivos conhecidos cadastrados"""
+    from models import KnownDevice
+    admin = get_current_admin()
+    devices = KnownDevice.query.order_by(KnownDevice.hostname).all()
+    return render_template('admin_monitoring_devices.html', admin=admin, devices=devices)
+
+
+@admin_bp.route('/monitoring/devices/new', methods=['GET', 'POST'])
+@admin_required
+def monitoring_device_new():
+    """Cadastrar novo dispositivo conhecido"""
+    from models import KnownDevice
+    import re
+    admin = get_current_admin()
+    
+    if request.method == 'POST':
+        mac = request.form.get('mac_address', '').strip().upper()
+        hostname = request.form.get('hostname', '').strip()
+        category = request.form.get('category', 'pc')
+        notes = request.form.get('notes', '')
+        
+        if not mac or not hostname:
+            flash('MAC e Hostname são obrigatórios.', 'error')
+            return render_template('admin_monitoring_device_form.html', admin=admin, device=None)
+            
+        # Validar formato MAC simplificado
+        if not re.match(r'^([0-9A-F]{2}[:-]){5}([0-9A-F]{2})$', mac):
+            flash('Formato de MAC inválido. Use XX:XX:XX:XX:XX:XX', 'error')
+            return render_template('admin_monitoring_device_form.html', admin=admin, device=None)
+
+        if KnownDevice.query.filter_by(mac_address=mac).first():
+            flash('Este MAC já está cadastrado.', 'error')
+            return render_template('admin_monitoring_device_form.html', admin=admin, device=None)
+            
+        device = KnownDevice(
+            mac_address=mac,
+            hostname=hostname,
+            category=category,
+            notes=notes
+        )
+        db.session.add(device)
+        db.session.commit()
+        
+        flash(f'Dispositivo {hostname} cadastrado com sucesso!', 'success')
+        return redirect(url_for('admin.monitoring_devices'))
+        
+    return render_template('admin_monitoring_device_form.html', admin=admin, device=None)
+
+
+@admin_bp.route('/monitoring/devices/edit/<int:id>', methods=['GET', 'POST'])
+@admin_required
+def monitoring_device_edit(id):
+    """Editar dispositivo conhecido existente"""
+    from models import KnownDevice
+    import re
+    admin = get_current_admin()
+    device = KnownDevice.query.get_or_404(id)
+    
+    if request.method == 'POST':
+        mac = request.form.get('mac_address', '').strip().upper()
+        hostname = request.form.get('hostname', '').strip()
+        category = request.form.get('category', 'pc')
+        notes = request.form.get('notes', '')
+        
+        if not mac or not hostname:
+            flash('MAC e Hostname são obrigatórios.', 'error')
+            return render_template('admin_monitoring_device_form.html', admin=admin, device=device)
+            
+        # Validar formato MAC simplificado
+        if not re.match(r'^([0-9A-F]{2}[:-]){5}([0-9A-F]{2})$', mac):
+            flash('Formato de MAC inválido. Use XX:XX:XX:XX:XX:XX', 'error')
+            return render_template('admin_monitoring_device_form.html', admin=admin, device=device)
+
+        # Verifica duplicidade (apenas se mudou o MAC)
+        if mac != device.mac_address and KnownDevice.query.filter_by(mac_address=mac).first():
+            flash('Este MAC já está cadastrado em outro dispositivo.', 'error')
+            return render_template('admin_monitoring_device_form.html', admin=admin, device=device)
+            
+        device.mac_address = mac
+        device.hostname = hostname
+        device.category = category
+        device.notes = notes
+        
+        db.session.commit()
+        
+        flash(f'Dispositivo {hostname} atualizado com sucesso!', 'success')
+        return redirect(url_for('admin.monitoring_devices'))
+        
+    return render_template('admin_monitoring_device_form.html', admin=admin, device=device)
+
+
+@admin_bp.route('/monitoring/devices/delete/<int:id>', methods=['POST'])
+@admin_required
+def delete_known_device(id):
+    """Remove um dispositivo conhecido"""
+    from models import KnownDevice
+    device = KnownDevice.query.get_or_404(id)
+    db.session.delete(device)
+    db.session.commit()
+    flash('Dispositivo removido com sucesso.', 'success')
+    return redirect(url_for('admin.monitoring_devices'))
+
+# Fim do arquivo

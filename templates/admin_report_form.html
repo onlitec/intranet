@@ -4,7 +4,7 @@
 {% block page_title %}{{ 'Editar' if schedule else 'Novo' }} Agendamento de Relatório{% endblock %}
 
 {% block content %}
-<div style="max-width: 600px;">
+<div class="content-narrow">
     <div class="card">
         <div class="card-header">
             <h3 class="card-title">📅 {{ '✏️ Editar' if schedule else '➕ Configurações do' }} Relatório</h3>
@@ -21,6 +21,17 @@
                 </div>
 
                 <div class="form-group">
+                    <label for="report_type" class="form-label required">Tipo de Relatório</label>
+                    <select id="report_type" name="report_type" class="form-control" required>
+                        <option value="server_activity" {% if not schedule or schedule.report_type=='server_activity'
+                            %}selected{% endif %}>Atividade do Servidor (Arquivos/Login)</option>
+                        <option value="internet_monitoring" {% if schedule and
+                            schedule.report_type=='internet_monitoring' %}selected{% endif %}>Monitoramento de Internet
+                            (Acessos/Sites)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
                     <label for="frequency" class="form-label required">Frequência / Período</label>
                     <select id="frequency" name="frequency" class="form-control" onchange="toggleCustomDays()" required>
                         <option value="daily" {% if schedule and schedule.frequency=='daily' %}selected{% endif %}>
@@ -34,8 +45,8 @@
                     </select>
                 </div>
 
-                <div class="form-group" id="customDaysGroup"
-                    style="display: {{ 'block' if schedule and schedule.frequency == 'custom' else 'none' }};">
+                <div class="form-group {% if not (schedule and schedule.frequency == 'custom') %}is-hidden{% endif %}"
+                    id="customDaysGroup">
                     <label for="custom_days" class="form-label required">Quantidade de Dias</label>
                     <input type="number" id="custom_days" name="custom_days" class="form-control"
                         value="{{ schedule.custom_days or 1 }}" min="1">
@@ -51,7 +62,7 @@
                 </div>
 
                 {% if schedule %}
-                <div class="form-group" style="margin-top: 16px;">
+                <div class="form-group mt-4">
                     <label class="checkbox-container">
                         <input type="checkbox" name="is_active" {% if schedule.is_active %}checked{% endif %}>
                         <span class="checkmark"></span>
@@ -60,7 +71,7 @@
                 </div>
                 {% endif %}
 
-                <div style="display: flex; gap: 12px; margin-top: 32px;">
+                <div class="form-actions mt-8">
                     <button type="submit" class="btn btn-primary">💾 {{ 'Salvar Alterações' if schedule else 'Criar
                         Agendamento' }}</button>
                     <a href="{{ url_for('admin.report_schedules') }}" class="btn btn-secondary">Cancelar</a>
@@ -74,7 +85,7 @@
     function toggleCustomDays() {
         const freq = document.getElementById('frequency').value;
         const group = document.getElementById('customDaysGroup');
-        group.style.display = (freq === 'custom') ? 'block' : 'none';
+        group.classList.toggle('is-hidden', freq !== 'custom');
     }
 </script>
 {% endblock %}

@@ -1,0 +1,21 @@
+[Unit]
+Description=Intranet ES-SERVIDOR Monitoring Engine
+After=network.target
+
+[Service]
+Type=exec
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/intranet
+EnvironmentFile=-/opt/intranet/.env
+Environment="PATH=/opt/intranet/venv/bin"
+Environment=PYTHONUNBUFFERED=1
+# Usar porta alta por padrão (sem root/capabilities). Ajuste via SYSLOG_PORT se necessário.
+Environment=SYSLOG_PORT=1514
+ExecStart=/opt/intranet/venv/bin/python /opt/intranet/run_engine.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+

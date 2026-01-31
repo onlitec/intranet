@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+
+{% block title %}Fontes de Dados de Monitoramento{% endblock %}
+{% block page_title %}Fontes de Dados{% endblock %}
+{% block page_subtitle %}Configure de onde os dados de acesso virão{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+    <!-- Form Novo -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Nova Fonte</h3>
+        </div>
+        <div class="card-body">
+            <form action="{{ url_for('admin.monitoring_sources') }}" method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                <div class="form-group mb-4">
+                    <label class="form-label" for="name">Nome Amigável</label>
+                    <input type="text" id="name" name="name" class="form-control" placeholder="Roteador Principal"
+                        required>
+                </div>
+
+                <div class="form-group mb-4">
+                    <label class="form-label" for="source_type">Tipo de Fonte</label>
+                    <select id="source_type" name="source_type" class="form-control" required>
+                        <option value="router_syslog">Roteador (Syslog)</option>
+                        <option value="router_api">Roteador (API Client)</option>
+                        <option value="proxy_syslog">Servidor Proxy (Syslog)</option>
+                    </select>
+                </div>
+
+                <div class="form-group mb-4">
+                    <label class="form-label" for="provider">Provedor / Fabricante</label>
+                    <select id="provider" name="provider" class="form-control" required>
+                        <optgroup label="Roteadores / Gateways">
+                            <option value="mikrotik">MikroTik (API)</option>
+                            <option value="mikrotik_syslog">MikroTik (Syslog)</option>
+                            <option value="fortinet">Fortinet (API)</option>
+                            <option value="pfsense">pfSense (API)</option>
+                            <option value="unifi">Ubiquiti UniFi (API)</option>
+                        </optgroup>
+                        <optgroup label="DNS / Filtros">
+                            <option value="pihole">Pi-hole (API)</option>
+                            <option value="adguard">AdGuard Home (API)</option>
+                            <option value="bind9">Bind9 (Logs)</option>
+                        </optgroup>
+                        <optgroup label="Proxies">
+                            <option value="squid">Squid Proxy</option>
+                            <option value="bluecoat">Symantec BlueCoat</option>
+                        </optgroup>
+                        <optgroup label="Outros">
+                            <option value="csv">Arquivo CSV de Log</option>
+                            <option value="generic_syslog">Genérico (Syslog UDP 514)</option>
+                        </optgroup>
+                    </select>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="form-group mb-4">
+                        <label class="form-label" for="host">IP / Host</label>
+                        <input type="text" id="host" name="host" class="form-control" placeholder="192.168.1.1">
+                    </div>
+                    <div class="form-group mb-4">
+                        <label class="form-label" for="port">Porta</label>
+                        <input type="number" id="port" name="port" class="form-control" placeholder="8728">
+                    </div>
+                </div>
+
+                <div class="form-group mb-4">
+                    <label class="form-label" for="username">Usuário (Leitura)</label>
+                    <input type="text" id="username" name="username" class="form-control">
+                </div>
+
+                <div class="form-group mb-4">
+                    <label class="form-label" for="password">Senha / API Key</label>
+                    <input type="password" id="password" name="password" class="form-control">
+                </div>
+
+                <div class="form-group mb-6">
+                    <label class="flex items-center cursor-pointer">
+                        <input type="checkbox" name="use_ssl" class="mr-2" checked>
+                        <span class="text-sm">Usar Conexão Segura (SSL/TLS)</span>
+                    </label>
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-block">Configurar Integração</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Lista Existente -->
+    <div class="md:col-span-2">
+        <div class="card h-full">
+            <div class="card-header">
+                <h3 class="card-title">Fontes Configuradas</h3>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Nome</th>
+                                <th>Tipo / Provedor</th>
+                                <th>IP/Porta</th>
+                                <th>Status</th>
+                                <th class="text-right">Ação</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for source in sources %}
+                            <tr>
+                                <td><strong>{{ source.name }}</strong></td>
+                                <td>
+                                    <span class="badge badge-info">{{ source.source_type }}</span>
+                                    <small class="block text-muted">{{ source.provider }}</small>
+                                </td>
+                                <td>{{ source.host or 'Receptor' }}:{{ source.port }}</td>
+                                <td>
+                                    <span
+                                        class="status-dot {% if source.is_active %}online{% else %}offline{% endif %}"></span>
+                                    {{ 'Ativo' if source.is_active else 'Inativo' }}
+                                </td>
+                                <td class="text-right">
+                                    <form action="{{ url_for('admin.delete_monitoring_source', id=source.id) }}"
+                                        method="POST" style="display:inline;"
+                                        onsubmit="return confirm('Tem certeza que deseja remover esta fonte?');">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                        <button type="submit" class="btn btn-xs btn-ghost text-error">Excluir</button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="5" class="text-center p-8">Nenhuma fonte configurada.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="card-footer bg-gray-50 p-4 border-t">
+                <div class="alert alert-info py-2 px-3 text-xs">
+                    <span class="alert-icon">ℹ️</span>
+                    <span>Para fontes via <strong>Syslog</strong>, certifique-se de que o dispositivo enviará os logs
+                        para este servidor na porta configurada.</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

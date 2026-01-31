@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+
+{% block title %}Novo Dispositivo - {{ super() }}{% endblock %}
+
+{% block content %}
+<div class="content-header">
+    <div>
+        <h1 class="content-title">{% if device %}Editar{% else %}Cadastrar{% endif %} Dispositivo</h1>
+        <p class="content-subtitle">{% if device %}Atualize as informações do dispositivo.{% else %}Vincule um MAC
+            Address a um nome amigável para monitoramento.{% endif %}</p>
+    </div>
+    <div class="header-actions">
+        <a href="{{ url_for('admin.monitoring_devices') }}" class="btn btn-secondary">Voltar</a>
+    </div>
+</div>
+
+<div class="card max-w-2xl">
+    <div class="card-body">
+        <form method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="form-group">
+                    <label class="form-label">Hostname / Nome Amigável</label>
+                    <input type="text" name="hostname" class="form-control" placeholder="Ex: PC-VENDAS-01"
+                        value="{{ device.hostname if device else '' }}" required>
+                    <p class="text-xs text-muted mt-1">Como o dispositivo será identificado nos gráficos.</p>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">MAC Address</label>
+                    <input type="text" name="mac_address" class="form-control" placeholder="XX:XX:XX:XX:XX:XX"
+                        value="{{ device.mac_address if device else '' }}" required>
+                    <p class="text-xs text-muted mt-1">Formato: 00:00:00:00:00:00</p>
+                </div>
+            </div>
+
+            <div class="form-group mt-4">
+                <label class="form-label">Categoria</label>
+                <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    <label class="category-radio">
+                        <input type="radio" name="category" value="pc" {% if not device or device.category=='pc'
+                            %}checked{% endif %}>
+                        <span>💻 Computador</span>
+                    </label>
+                    <label class="category-radio">
+                        <input type="radio" name="category" value="smartphone" {% if device and
+                            device.category=='smartphone' %}checked{% endif %}>
+                        <span>📱 Celular</span>
+                    </label>
+                    <label class="category-radio">
+                        <input type="radio" name="category" value="camera" {% if device and device.category=='camera'
+                            %}checked{% endif %}>
+                        <span>📷 Câmera/NVR</span>
+                    </label>
+                    <label class="category-radio">
+                        <input type="radio" name="category" value="pabx" {% if device and device.category=='pabx'
+                            %}checked{% endif %}>
+                        <span>☎️ Central PABX</span>
+                    </label>
+                    <label class="category-radio">
+                        <input type="radio" name="category" value="server" {% if device and device.category=='server'
+                            %}checked{% endif %}>
+                        <span>🖥️ Servidor</span>
+                    </label>
+                    <label class="category-radio">
+                        <input type="radio" name="category" value="other" {% if device and device.category=='other'
+                            %}checked{% endif %}>
+                        <span>🔌 Outro</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="form-group mt-6">
+                <label class="form-label">Notas Adicionais</label>
+                <textarea name="notes" class="form-control" rows="3"
+                    placeholder="Localização, dono do dispositivo, etc...">{{ device.notes if device else '' }}</textarea>
+            </div>
+
+            <div class="form-actions mt-8">
+                <button type="submit" class="btn btn-primary btn-lg w-full">{% if device %}Atualizar{% else %}Salvar{%
+                    endif %} Dispositivo</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+    .category-radio {
+        display: block;
+        cursor: pointer;
+    }
+
+    .category-radio input {
+        display: none;
+    }
+
+    .category-radio span {
+        display: block;
+        padding: 12px;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        text-align: center;
+        transition: all 0.2s;
+    }
+
+    .category-radio input:checked+span {
+        border-color: var(--primary-color);
+        background: rgba(37, 99, 235, 0.05);
+        color: var(--primary-color);
+        font-weight: bold;
+    }
+</style>
+{% endblock %}

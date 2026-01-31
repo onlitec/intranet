@@ -195,6 +195,62 @@ function setupKeyboardShortcuts() {
 }
 
 // ========================================
+// Sidebar Toggle (Mobile)
+// ========================================
+
+function setupSidebarToggle() {
+    const sidebar = document.getElementById('app-sidebar');
+    const toggleBtn = document.querySelector('.sidebar-toggle');
+    const backdrop = document.getElementById('sidebar-backdrop');
+
+    if (!sidebar || !toggleBtn || !backdrop) return;
+
+    function openSidebar() {
+        sidebar.classList.add('open');
+        backdrop.hidden = false;
+        toggleBtn.setAttribute('aria-expanded', 'true');
+        document.body.classList.add('sidebar-open');
+    }
+
+    function closeSidebar() {
+        sidebar.classList.remove('open');
+        backdrop.hidden = true;
+        toggleBtn.setAttribute('aria-expanded', 'false');
+        document.body.classList.remove('sidebar-open');
+    }
+
+    function isOpen() {
+        return sidebar.classList.contains('open');
+    }
+
+    toggleBtn.addEventListener('click', function () {
+        if (isOpen()) closeSidebar();
+        else openSidebar();
+    });
+
+    backdrop.addEventListener('click', closeSidebar);
+
+    sidebar.addEventListener('click', function (e) {
+        const link = e.target.closest('a');
+        if (link && window.innerWidth <= 1024) {
+            closeSidebar();
+        }
+    });
+
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') {
+            closeSidebar();
+        }
+    });
+
+    window.addEventListener('resize', function () {
+        if (window.innerWidth > 1024) {
+            closeSidebar();
+        }
+    });
+}
+
+// ========================================
 // Animations
 // ========================================
 
@@ -244,6 +300,7 @@ document.addEventListener('DOMContentLoaded', function () {
     confirmLogout();
     autoDismissFlashMessages();
     setupKeyboardShortcuts();
+    setupSidebarToggle();
 
     // Log app initialization
     console.log('✓ Intranet ES-SERVIDOR inicializado');

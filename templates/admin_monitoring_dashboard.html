@@ -1,0 +1,385 @@
+{% extends "base.html" %}
+
+{% block title %}Monitoramento de Internet{% endblock %}
+{% block page_title %}Monitoramento de Internet{% endblock %}
+{% block page_subtitle %}Análise de tráfego em tempo real e histórico de navegação{% endblock %}
+
+{% block content %}
+<!-- Top Metrics Section -->
+<div class="stats-grid mb-6">
+    <div class="stat-card">
+        <div class="stat-icon primary">🌐</div>
+        <div class="stat-info">
+            <div class="stat-value">{{ stats.total_requests_today }}</div>
+            <div class="stat-label">Requisições (Hoje)</div>
+            <div class="stat-change positive">
+                <span>↑ 12% em relação a ontem</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="stat-card">
+        <div class="stat-icon success">📡</div>
+        <div class="stat-info">
+            <div class="stat-value">{{ stats.active_sources }}</div>
+            <div class="stat-label">Fontes Ativas</div>
+            <div class="stat-change text-muted">
+                <span class="status-dot status-online"></span>
+                <span>Sistema Operacional</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="stat-card">
+        <div class="stat-icon success">🛡️</div>
+        <div class="stat-info">
+            <div class="stat-value">{{ stats.known_vs_unknown[0] }}</div>
+            <div class="stat-label">Acessos Conhecidos</div>
+            <div class="stat-change positive">
+                <span>{{ ((stats.known_vs_unknown[0] / (stats.known_vs_unknown[0] + stats.known_vs_unknown[1] or 1)) *
+                    100)|round|int }}% do total</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="stat-card accent-error">
+        <div class="stat-icon error">⚠️</div>
+        <div class="stat-info">
+            <div class="stat-value">{{ stats.known_vs_unknown[1] }}</div>
+            <div class="stat-label">Acessos Desconhecidos</div>
+            <div class="stat-change negative">
+                <span>{{ ((stats.known_vs_unknown[1] / (stats.known_vs_unknown[0] + stats.known_vs_unknown[1] or 1)) *
+                    100)|round|int }}% do total</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Main Visualizations -->
+<div class="grid grid-cols-2 gap-6 mb-6">
+    <!-- Activity Chart -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">📊 Atividade de Navegação (24h)</h3>
+            <div class="badge badge-info">Real-time</div>
+        </div>
+        <div class="card-body">
+            <div class="chart-container">
+                <canvas id="activityChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Category Distribution Chart (Doughnut) -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">📉 Distribuição por Categoria</h3>
+        </div>
+        <div class="card-body">
+            <div class="chart-frame-300">
+                <canvas id="categoryChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Device Activity Panel (Full Width) -->
+<div class="card mb-6">
+    <div class="card-header">
+        <h3 class="card-title">📱 Atividade por Dispositivo</h3>
+        <div class="badge badge-primary">Últimas 24h</div>
+    </div>
+    <div class="card-body">
+        <div class="grid grid-cols-3 gap-6">
+            <!-- Gráfico de Colunas Verticais -->
+            <div class="col-span-2">
+                <div class="chart-container">
+                    <canvas id="deviceActivityChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Top 10 Dispositivos com Detalhes -->
+            <div>
+                <h4 class="text-sm font-bold mb-3 text-muted">Top 10 Dispositivos</h4>
+                <div class="stack stack-2 scroll-panel">
+                    {% for device in stats.top_devices[:10] %}
+                    <div class="p-3 bg-muted rounded-lg border">
+                        <div class="flex items-center justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="text-lg">
+                                    {% set category = known_devices.get(device[2]) if device[2] else None %}
+                                    {% if category == 'pc' %}💻
+                                    {% elif category == 'smartphone' %}📱
+                                    {% elif category == 'camera' %}📷
+                                    {% elif category == 'pabx' %}☎️
+                                    {% elif category == 'server' %}🖥️
+                                    {% elif category == 'other' %}🔌
+                                    {% else %}💻{% endif %}
+                                </span>
+                                <div>
+                                    <div class="font-bold text-sm">{{ device[1] or 'Desconhecido' }}</div>
+                                    <div class="text-xs text-muted">{{ device[0] }}</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between mt-2">
+                            <span class="text-xs text-muted">Requisições</span>
+                            <span class="font-bold text-primary">{{ device[3] }}</span>
+                        </div>
+                        {% if device[2] %}
+                        <div class="mt-1">
+                            <code class="text-xs">{{ device[2] }}</code>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="grid grid-cols-2 gap-6">
+    <!-- Top Sites with Bar Distribution -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">🔥 Domínios Mais Acessados</h3>
+            <a href="{{ url_for('admin.monitoring_logs') }}" class="btn btn-sm btn-ghost">Relatório Completo</a>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Website</th>
+                            <th class="w-40pct">Distribuição</th>
+                            <th class="text-right">Hits</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for site, count in stats.top_sites %}
+                        <tr>
+                            <td>
+                                <div class="flex items-center gap-2">
+                                    <div class="avatar-xs">
+                                        {{ site[0]|upper }}
+                                    </div>
+                                    <span class="font-medium">{{ site }}</span>
+                                </div>
+                            </td>
+                            <td>
+                                {% set max_hits = stats.top_sites[0][1] if stats.top_sites else 1 %}
+                                <progress class="progress-mini" value="{{ (count / max_hits * 100) }}" max="100">
+                                </progress>
+                            </td>
+                            <td class="text-right"><strong>{{ count }}</strong></td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="3" class="text-center p-8 text-muted">Aguardando coleta de dados...</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Top Devices with Details -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">📱 Dispositivos em Destaque</h3>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Dispositivo</th>
+                            <th class="text-right">Interações</th>
+                            <th class="text-right">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for ip, host, mac, count in stats.top_devices %}
+                        <tr>
+                            <td>
+                                <div class="flex items-center gap-2">
+                                    <div class="font-bold">{{ host or 'Desconhecido' }}</div>
+                                    {% if mac %}
+                                    <span class="badge badge-primary badge-xs">Known</span>
+                                    {% else %}
+                                    <span class="badge badge-error badge-xs">Unknown</span>
+                                    {% endif %}
+                                </div>
+                                <div class="text-xs text-muted">{{ ip }}</div>
+                            </td>
+                            <td class="text-right">
+                                <code class="text-xs">{{ mac or '---' }}</code>
+                            </td>
+                            <td class="text-right font-bold">{{ count }}</td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="3" class="text-center p-8 text-muted">Nenhum dispositivo detectado ainda.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const ctx = document.getElementById('activityChart').getContext('2d');
+
+        // Gradiente para o gráfico
+        const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+        gradient.addColorStop(0, 'rgba(37, 99, 235, 0.4)');
+        gradient.addColorStop(1, 'rgba(37, 99, 235, 0.0)');
+
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: {{ stats.chart_labels | tojson }},
+        datasets: [{
+            label: 'Requisições/Hora',
+            data: {{ stats.chart_data | tojson }},
+        borderColor: '#2563eb',
+        backgroundColor: gradient,
+        borderWidth: 3,
+        fill: true,
+        tension: 0.4,
+        pointRadius: 4,
+        pointBackgroundColor: '#fff',
+        pointBorderColor: '#2563eb',
+        pointBorderWidth: 2
+                }]
+            },
+        options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: { display: false },
+            tooltip: {
+                mode: 'index',
+                intersect: false,
+                backgroundColor: '#fff',
+                titleColor: '#1e293b',
+                bodyColor: '#1e293b',
+                borderColor: '#e2e8f0',
+                borderWidth: 1,
+                padding: 12,
+                displayColors: false
+            }
+        },
+        scales: {
+            y: {
+                beginAtZero: true,
+                grid: { color: 'rgba(0,0,0,0.05)', drawBorder: false },
+                ticks: { color: '#64748b' }
+            },
+            x: {
+                grid: { display: false },
+                ticks: { color: '#64748b' }
+            }
+        }
+    }
+        });
+
+    // Gráfico de Categoria (Doughnut)
+    const catCtx = document.getElementById('categoryChart').getContext('2d');
+    new Chart(catCtx, {
+        type: 'doughnut',
+        data: {
+            labels: {{ stats.category_labels | tojson }},
+        datasets: [{
+            data: {{ stats.category_data | tojson }},
+        backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#64748b'],
+        borderWidth: 0
+            }]
+        },
+        options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                position: 'bottom',
+                labels: { boxWidth: 12, padding: 20 }
+            }
+        },
+        cutout: '70%'
+    }
+    });
+
+    // Gráfico de Atividade por Dispositivo (Colunas Verticais)
+    const deviceCtx = document.getElementById('deviceActivityChart').getContext('2d');
+    const deviceData = {{ stats.top_devices | tojson }};
+
+    new Chart(deviceCtx, {
+        type: 'bar',
+        data: {
+            labels: deviceData.map(d => d[1] || d[0]),  // hostname ou IP
+            datasets: [{
+                label: 'Requisições',
+                data: deviceData.map(d => d[3]),  // count
+                backgroundColor: '#3b82f6',
+                borderRadius: 6,
+                borderWidth: 0,
+                maxBarThickness: 60
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: '#1e293b',
+                    padding: 12,
+                    cornerRadius: 8,
+                    callbacks: {
+                        title: function (context) {
+                            const idx = context[0].dataIndex;
+                            return deviceData[idx][1] || 'Dispositivo Desconhecido';
+                        },
+                        afterTitle: function (context) {
+                            const idx = context[0].dataIndex;
+                            return 'IP: ' + deviceData[idx][0];
+                        },
+                        label: function (context) {
+                            return 'Requisições: ' + context.parsed.y;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    grid: { color: 'rgba(0,0,0,0.05)', drawBorder: false },
+                    ticks: { color: '#64748b' }
+                },
+                x: {
+                    grid: { display: false },
+                    ticks: {
+                        color: '#64748b',
+                        maxRotation: 45,
+                        minRotation: 45,
+                        font: { size: 10 }
+                    }
+                }
+            }
+        }
+    });
+
+    // Gráfico de conhecido vs desconhecido (Opcional: Pode ser estatística ou mini-chart)
+    // Já exibido nos cards superiores
+    });
+</script>
+{% endblock %}
