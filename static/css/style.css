@@ -89,23 +89,23 @@
    LIGHT MODE OVERRIDE
    ================================================ */
 [data-theme="light"] {
-    --bg-base: #f8fafc;
-    /* Slate 50 */
+    --bg-base: #f1f5f9;
+    /* Slate 100 - Base background */
     --bg-surface: #ffffff;
-    /* Pure White */
-    --bg-elevated: #f1f5f9;
-    /* Slate 100 */
-    --bg-muted: #e2e8f0;
-    /* Slate 200 */
+    /* Pure White - Surface */
+    --bg-elevated: #e2e8f0;
+    /* Slate 200 - Elevated */
+    --bg-muted: #f8fafc;
+    /* Slate 50 - Muted */
 
     --text-primary: #0f172a;
-    /* Slate 900 */
-    --text-secondary: #1e293b;
-    /* Slate 800 */
-    --text-dim: #475569;
-    /* Slate 600 */
-    --text-muted: #64748b;
+    /* Slate 900 - Black-ish */
+    --text-secondary: #334155;
+    /* Slate 700 */
+    --text-dim: #64748b;
     /* Slate 500 */
+    --text-muted: #94a3b8;
+    /* Slate 400 */
 
     --accent: #2563eb;
     /* Blue 600 - Darker for contrast */
@@ -114,15 +114,49 @@
     --accent-dim: rgba(37, 99, 235, 0.1);
     --accent-glow: rgba(37, 99, 235, 0.15);
 
-    --border: #e2e8f0;
-    /* Slate 200 */
-    --border-light: rgba(0, 0, 0, 0.04);
-    --border-strong: #cbd5e1;
-    /* Slate 300 */
+    /* BORDAS ESCURAS (Pedido do Usuário) */
+    --border: #cbd5e1;
+    /* Slate 300 - Standard Borders */
+    --border-light: #e2e8f0;
+    /* Slate 200 - Light Borders */
+    --border-strong: #94a3b8;
+    /* Slate 400 - Strong components */
 
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
-    --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.12);
+    /* Shadows - Crisper for light mode */
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+
+    /* Inputs and Cards specific for Light Mode */
+    --input-bg: #ffffff;
+    --input-border: #94a3b8;
+    /* Slate 400 */
+}
+
+/* HIGH CONTRAST LIGHT MODE OVERRIDES */
+[data-theme="light"] .card,
+[data-theme="light"] .stat-card {
+    border: 1px solid var(--border-strong);
+    box-shadow: var(--shadow-sm);
+}
+
+[data-theme="light"] .table th {
+    background-color: #e2e8f0;
+    /* Darker header */
+    color: var(--text-primary);
+    border-bottom: 2px solid var(--border-strong);
+}
+
+[data-theme="light"] .table td {
+    border-bottom: 1px solid var(--border);
+}
+
+[data-theme="light"] input,
+[data-theme="light"] select,
+[data-theme="light"] textarea {
+    border: 1px solid var(--border-strong);
+    background-color: #ffffff;
+    color: var(--text-primary);
 }
 
 /* ================================================
