@@ -16,7 +16,7 @@
         rel="stylesheet">
 
     <!-- CSS (Version Bump for Cache Busting) -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20260201_v6">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20260201_v8">
 
     <!-- Favicon -->
     <link rel="icon" type="image/png" href="{{ settings.site_favicon }}">
@@ -55,13 +55,31 @@
                 <a href="{{ url_for('admin.monitoring_dashboard') }}"
                     class="nav-item {% if request.endpoint == 'admin.monitoring_dashboard' %}active{% endif %}">
                     <span class="nav-icon">{{ icon('activity') }}</span>
-                    <span>Painel de Tráfego</span>
+                    <span>Painel Geral</span>
                 </a>
-                <a href="{{ url_for('admin.monitoring_logs') }}"
-                    class="nav-item {% if request.endpoint == 'admin.monitoring_logs' %}active{% endif %}">
-                    <span class="nav-icon">{{ icon('list') }}</span>
-                    <span>Logs de Acesso</span>
-                </a>
+
+                <!-- Dispositivos with Submenu -->
+                <div class="nav-item nav-item-expandable {% if request.endpoint in ['admin.monitoring_devices_overview', 'admin.monitoring_device_details', 'admin.monitoring_productivity_device_details', 'admin.monitoring_report_productivity', 'admin.monitoring_logs'] %}expanded{% endif %}"
+                    id="devices-menu" onclick="toggleSubmenu('devices-menu', 'devices-submenu')">
+                    <span class="nav-icon">📱</span>
+                    <span>Dispositivos</span>
+                </div>
+                <div class="nav-submenu {% if request.endpoint in ['admin.monitoring_devices_overview', 'admin.monitoring_device_details', 'admin.monitoring_productivity_device_details', 'admin.monitoring_report_productivity', 'admin.monitoring_logs'] %}expanded{% endif %}"
+                    id="devices-submenu">
+                    <a href="{{ url_for('admin.monitoring_devices_overview') }}"
+                        class="nav-subitem {% if request.endpoint in ['admin.monitoring_devices_overview', 'admin.monitoring_device_details', 'admin.monitoring_productivity_device_details'] %}active{% endif %}">
+                        <span>Visão Geral</span>
+                    </a>
+                    <a href="{{ url_for('admin.monitoring_logs') }}"
+                        class="nav-subitem {% if request.endpoint == 'admin.monitoring_logs' %}active{% endif %}">
+                        <span>Logs de Acesso</span>
+                    </a>
+                    <a href="{{ url_for('admin.monitoring_report_productivity') }}"
+                        class="nav-subitem {% if request.endpoint == 'admin.monitoring_report_productivity' %}active{% endif %}">
+                        <span>Produtividade</span>
+                    </a>
+                </div>
+
                 <a href="{{ url_for('admin.monitoring_devices') }}"
                     class="nav-item {% if request.endpoint == 'admin.monitoring_devices' %}active{% endif %}">
                     <span class="nav-icon">{{ icon('cpu') }}</span>
@@ -71,11 +89,6 @@
                     class="nav-item {% if request.endpoint == 'admin.monitoring_network_map' %}active{% endif %}">
                     <span class="nav-icon">{{ icon('layers') }}</span>
                     <span>Mapa de Rede</span>
-                </a>
-                <a href="{{ url_for('admin.monitoring_report_productivity') }}"
-                    class="nav-item {% if request.endpoint == 'admin.monitoring_report_productivity' %}active{% endif %}">
-                    <span class="nav-icon">{{ icon('bar-chart') }}</span>
-                    <span>Produtividade</span>
                 </a>
             </div>
 
@@ -94,7 +107,7 @@
             </div>
 
             <div class="nav-section">
-                <div class="nav-section-title">Gestão ES-SERVIDOR</div>
+                <div class="nav-section-title">GERENCIAMENTO</div>
                 <a href="{{ url_for('admin.users_list') }}"
                     class="nav-item {% if request.endpoint in ['admin.users_list', 'admin.users_new', 'admin.users_edit'] %}active{% endif %}">
                     <span class="nav-icon">{{ icon('users') }}</span>
@@ -233,6 +246,19 @@
     {% endblock %}
 
     <script>
+        // Submenu toggle functionality
+        const toggleSubmenu = (menuId, submenuId) => {
+            const menu = document.getElementById(menuId);
+            const submenu = document.getElementById(submenuId);
+
+            menu.classList.toggle('expanded');
+            submenu.classList.toggle('expanded');
+
+            // Save state to localStorage
+            const isExpanded = menu.classList.contains('expanded');
+            localStorage.setItem(`submenu_${menuId}`, isExpanded);
+        };
+
         const initTheme = () => {
             const toggles = document.querySelectorAll('#theme-toggle, #theme-toggle-mobile');
             toggles.forEach(btn => btn.addEventListener('click', () => {

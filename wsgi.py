@@ -83,6 +83,7 @@ def create_app() -> Flask:
     app.register_blueprint(admin_bp)
 
     # Blueprint agent (API do Agente)
+    csrf.exempt(agent_api)
     app.register_blueprint(agent_api)
 
     # Rotas principais (endpoints legados sem prefixo)

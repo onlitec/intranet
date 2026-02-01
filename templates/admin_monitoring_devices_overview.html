@@ -1,0 +1,257 @@
+{% extends "base.html" %}
+
+{% block title %}Dispositivos - Monitoramento{% endblock %}
+
+{% block content %}
+<div class="content-header">
+    <div>
+        <h1 class="content-title">📱 Dispositivos e Acessos</h1>
+        <p class="content-subtitle">Visão completa de todos os dispositivos da rede com destaque para os conhecidos</p>
+    </div>
+    <div class="header-actions">
+        <form class="flex gap-2 items-center">
+            <label class="text-sm text-muted">Período:</label>
+            <select name="days" class="form-select form-select-sm" onchange="this.form.submit()">
+                <option value="1" {% if days==1 %}selected{% endif %}>Últimas 24h</option>
+                <option value="7" {% if days==7 %}selected{% endif %}>Últimos 7 dias</option>
+                <option value="30" {% if days==30 %}selected{% endif %}>Últimos 30 dias</option>
+            </select>
+        </form>
+    </div>
+</div>
+
+<!-- Stats Overview -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+    <div class="card">
+        <div class="card-body text-center">
+            <div class="text-4xl font-bold text-success">{{ active_known_devices }}</div>
+            <div class="text-sm text-muted mt-2">Dispositivos Ativos</div>
+            <div class="text-xs text-muted mt-1">(de {{ featured_devices|length }} conhecidos)</div>
+        </div>
+    </div>
+    <div class="card">
+        <div class="card-body text-center">
+            <div class="text-4xl font-bold" style="color: var(--accent);">{{ total_known_accesses }}</div>
+            <div class="text-sm text-muted mt-2">Acessos Conhecidos</div>
+        </div>
+    </div>
+    <div class="card">
+        <div class="card-body text-center">
+            <div class="text-4xl font-bold text-error">{{ total_unknown_accesses }}</div>
+            <div class="text-sm text-muted mt-2">Acessos Desconhecidos</div>
+            <div class="text-xs text-muted mt-1">({{ unknown_devices|length }} dispositivos)</div>
+        </div>
+    </div>
+</div>
+
+<!-- Featured Devices Section -->
+<div class="mb-8">
+    <div class="flex items-center justify-between mb-4">
+        <h2 class="text-2xl font-bold">⭐ Dispositivos em Destaque</h2>
+        <a href="{{ url_for('admin.monitoring_devices') }}" class="btn btn-sm btn-primary">
+            ⚙️ Gerenciar Dispositivos
+        </a>
+    </div>
+
+    {% if featured_devices %}
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {% for item in featured_devices %}
+        <div class="card card-clickable {% if not item.is_active_today %}opacity-60{% endif %}"
+            onclick="window.location.href='{{ url_for('admin.monitoring_device_details', identifier=item.device.hostname) }}'">
+            <div class="card-header border-b bg-surface-alt">
+                <div class="flex items-center justify-between w-full">
+                    <div class="flex items-center gap-3">
+                        <span class="text-3xl">
+                            {% if item.device.category == 'pc' %}💻
+                            {% elif item.device.category == 'smartphone' %}📱
+                            {% elif item.device.category == 'camera' %}📷
+                            {% elif item.device.category == 'pabx' %}☎️
+                            {% elif item.device.category == 'server' %}🖥️
+                            {% else %}🔌{% endif %}
+                        </span>
+                        <div>
+                            <h3 class="font-bold text-lg">{{ item.device.hostname }}</h3>
+                            <div class="flex gap-2 items-center mt-1">
+                                <code class="text-xs">{{ item.device.mac_address }}</code>
+                                {% if item.is_active_today %}
+                                <span class="status-dot status-online"></span>
+                                <span class="text-xs text-success">Ativo</span>
+                                {% else %}
+                                <span class="status-dot status-offline"></span>
+                                <span class="text-xs text-muted">Inativo</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-3xl font-bold text-accent">{{ item.access_count }}</div>
+                        <div class="text-xs text-muted">acessos</div>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="space-y-2">
+                    {% if item.top_sites %}
+                    <div>
+                        <div class="text-xs font-bold text-muted mb-2">Sites Mais Acessados:</div>
+                        <div class="space-y-1">
+                            {% for site in item.top_sites %}
+                            <div class="flex items-center justify-between p-2 rounded bg-surface text-sm">
+                                <span class="truncate">{{ site.domain }}</span>
+                                <span class="badge badge-primary badge-sm ml-2">{{ site.hits }}</span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="text-sm text-muted text-center py-4">
+                        Nenhum acesso registrado no período
+                    </div>
+                    {% endif %}
+
+                    {% if item.last_access %}
+                    <div class="text-xs text-muted mt-3 pt-3 border-t border-border">
+                        Último acesso: {{ item.last_access.strftime('%d/%m/%Y %H:%M') }}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="card">
+        <div class="card-body text-center py-12 text-muted">
+            <div class="text-6xl mb-4">📱</div>
+            <p>Nenhum dispositivo conhecido cadastrado ainda.</p>
+            <a href="{{ url_for('admin.monitoring_devices') }}" class="btn btn-primary mt-4">
+                Cadastrar Primeiro Dispositivo
+            </a>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Unknown Devices Section -->
+<div class="mb-8">
+    <div class="flex items-center justify-between mb-4">
+        <h2 class="text-2xl font-bold">❓ Dispositivos Desconhecidos</h2>
+        <span class="badge badge-error">{{ unknown_devices|length }} detectados</span>
+    </div>
+
+    {% if unknown_devices %}
+    <div class="card">
+        <div class="card-body p-0">
+            <div class="overflow-x-auto">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Hostname</th>
+                            <th>Endereço IP</th>
+                            <th>MAC Address</th>
+                            <th>Acessos</th>
+                            <th>Último Acesso</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for device in unknown_devices %}
+                        <tr>
+                            <td>
+                                <div class="flex items-center gap-2">
+                                    <span class="text-2xl">🔌</span>
+                                    <span class="font-medium">{{ device.hostname }}</span>
+                                </div>
+                            </td>
+                            <td><code class="text-sm">{{ device.ip }}</code></td>
+                            <td><code class="text-sm">{{ device.mac }}</code></td>
+                            <td><span class="font-bold">{{ device.hits }}</span></td>
+                            <td class="text-sm text-muted">
+                                {% if device.last_access %}
+                                {{ device.last_access.strftime('%d/%m %H:%M') }}
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="flex gap-2">
+                                    <a href="{{ url_for('admin.monitoring_device_details', identifier=device.ip) }}"
+                                        class="btn btn-sm btn-ghost" title="Ver Detalhes">
+                                        👁️
+                                    </a>
+                                    <button
+                                        onclick="registerDevice('{{ device.mac }}', '{{ device.hostname }}', '{{ device.ip }}')"
+                                        class="btn btn-sm btn-success" title="Registrar Dispositivo">
+                                        ➕ Cadastrar
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="card">
+        <div class="card-body text-center py-8 text-muted">
+            <div class="text-4xl mb-2">✅</div>
+            <p>Todos os dispositivos ativos são conhecidos!</p>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    function registerDevice(mac, hostname, ip) {
+        // Redirecionar para página de cadastro com dados pré-preenchidos
+        const url = new URL('{{ url_for("admin.monitoring_device_new") }}', window.location.origin);
+        url.searchParams.append('mac', mac);
+        url.searchParams.append('hostname', hostname || ip);
+        window.location.href = url.toString();
+    }
+</script>
+
+<style>
+    .card-clickable {
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .card-clickable:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+    }
+
+    .opacity-60 {
+        opacity: 0.6;
+    }
+
+    .opacity-60:hover {
+        opacity: 1;
+    }
+
+    .status-dot {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+    }
+
+    .status-online {
+        background-color: var(--success);
+        box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.3);
+    }
+
+    .status-offline {
+        background-color: var(--text-muted);
+    }
+
+    .badge-sm {
+        font-size: 0.7rem;
+        padding: 0.15rem 0.5rem;
+    }
+</style>
+{% endblock %}

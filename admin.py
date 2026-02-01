@@ -297,15 +297,15 @@ def dashboard():
         
         # Top usuário de hoje (simplificado para performance)
         top_user_query = db.session.query(
-            InternetAccessLog.user_id, 
+            InternetAccessLog.user_context, 
             db.func.count(InternetAccessLog.id).label('count')
         ).filter(
             InternetAccessLog.timestamp >= today_start
-        ).group_by(InternetAccessLog.user_id).order_by(db.desc('count')).first()
+        ).group_by(InternetAccessLog.user_context).order_by(db.desc('count')).first()
         
         if top_user_query:
-            user = ESSERVIDORUser.query.get(top_user_query[0])
-            traffic_stats['top_user'] = user.username if user else 'Desconhecido'
+            user = ESSERVIDORUser.query.filter_by(username=top_user_query[0]).first()
+            traffic_stats['top_user'] = user.username if user else top_user_query[0]
 
         # --- SERVIDORES NAS (Novo) ---
         nas_servers = FileServer.query.filter_by(is_active=True).all()
@@ -1546,9 +1546,13 @@ def monitoring_logs():
         
     logs = query.order_by(InternetAccessLog.timestamp.desc()).paginate(page=page, per_page=50)
     
-    # Mapa de dispositivos conhecidos para ícones corretos
+    # Mapa de dispositivos conhecidos para ícones e status do agente
     from models import KnownDevice
-    known_devices = {d.mac_address: d.category for d in KnownDevice.query.all()}
+    known_devices = {d.mac_address: {
+        'category': d.category,
+        'has_agent': d.agent_version is not None,
+        'agent_version': d.agent_version
+    } for d in KnownDevice.query.all()}
     
     return render_template('admin_monitoring_logs.html', admin=admin, logs=logs, known_devices=known_devices, filters=request.args)
 
@@ -1653,6 +1657,12 @@ def monitoring_device_details(identifier):
     ai_summary = ai_summary.replace('<blockquote>\n<p>[!TIP]', '<div class="ai-tip"><strong>💡 Dica do Sistema:</strong><br>')
     ai_summary = ai_summary.replace('</p>\n</blockquote>', '</div>')
     
+    # Inventário de Software (Novo V2)
+    inventory = []
+    if device.id:
+        from models import SoftwareInventory
+        inventory = SoftwareInventory.query.filter_by(device_id=device.id).order_by(SoftwareInventory.name).all()
+
     return render_template('admin_monitoring_device_details.html',
                          admin=admin,
                          device=device,
@@ -1660,7 +1670,8 @@ def monitoring_device_details(identifier):
                          total_requests=total_requests,
                          top_sites=top_sites,
                          recent_logs=recent_logs,
-                         ai_summary=ai_summary)
+                         ai_summary=ai_summary,
+                         inventory=inventory)
 
 
 @admin_bp.route('/monitoring/network-map')
@@ -1718,6 +1729,7 @@ def monitoring_report_productivity():
             user_report[user_name] = {
                 'name': user_name,
                 'device_name': device.hostname if device else '?',
+                'mac_address': mac,  # Adicionado para permitir link para detalhes
                 'sites': [],
                 'categories': {},  # Novo: Agregado por categoria
                 'total_hits': 0,
@@ -1778,6 +1790,172 @@ def monitoring_report_productivity():
                          days=days)
 
 
+@admin_bp.route('/monitoring/reports/productivity/device/<string:device_mac>')
+@admin_required
+def monitoring_productivity_device_details(device_mac):
+    """Detalhes completos de produtividade de um dispositivo específico com filtros de período"""
+    from models import InternetAccessLog, KnownDevice
+    from ai_service import AIService
+    from sqlalchemy import func
+    admin = get_current_admin()
+    
+    # Parâmetros de período
+    period_type = request.args.get('period', 'daily')  # daily, monthly, yearly, custom
+    start_date = request.args.get('start_date', '')
+    end_date = request.args.get('end_date', '')
+    
+    # Determinar intervalo de datas baseado no tipo de período
+    now = datetime.utcnow()
+    if period_type == 'daily':
+        since = now - timedelta(days=1)
+        period_label = "Últimas 24 horas"
+    elif period_type == 'monthly':
+        since = now - timedelta(days=30)
+        period_label = "Últimos 30 dias"
+    elif period_type == 'yearly':
+        since = now - timedelta(days=365)
+        period_label = "Último ano"
+    elif period_type == 'custom' and start_date and end_date:
+        try:
+            since = datetime.strptime(start_date, '%Y-%m-%d')
+            until = datetime.strptime(end_date, '%Y-%m-%d') + timedelta(days=1)
+            period_label = f"{start_date} até {end_date}"
+        except:
+            since = now - timedelta(days=7)
+            until = now
+            period_label = "Últimos 7 dias"
+    else:
+        since = now - timedelta(days=7)
+        period_label = "Últimos 7 dias"
+        period_type = 'weekly'
+    
+    # Se não é custom, define until como now
+    if period_type != 'custom':
+        until = now
+    
+    # Buscar dispositivo
+    device = KnownDevice.query.filter_by(mac_address=device_mac).first()
+    if not device:
+        flash('Dispositivo não encontrado', 'error')
+        return redirect(url_for('admin.monitoring_report_productivity'))
+    
+    # Query agregada por Website no período selecionado
+    stats_query = db.session.query(
+        InternetAccessLog.website,
+        func.count(InternetAccessLog.id).label('hits'),
+        func.sum(InternetAccessLog.duration).label('total_duration'),
+        func.max(InternetAccessLog.timestamp).label('last_access')
+    ).filter(
+        InternetAccessLog.mac_address == device_mac,
+        InternetAccessLog.timestamp >= since,
+        InternetAccessLog.timestamp < until
+    ).group_by(
+        InternetAccessLog.website
+    ).order_by(func.count(InternetAccessLog.id).desc()).all()
+    
+    # Processar dados
+    categories = {}
+    sites_list = []
+    total_hits = 0
+    total_duration = 0
+    
+    for site, hits, duration, last_access in stats_query:
+        # Obter insight do domínio
+        insight = AIService.get_domain_insight(site)
+        category = insight.category if insight else "Outros"
+        is_productive = insight.is_productive if insight else False
+        icon = insight.icon if insight else "🌐"
+        friendly_name = insight.friendly_name if insight else site
+        
+        # Atualizar categorias
+        if category not in categories:
+            categories[category] = {
+                'name': category,
+                'hits': 0,
+                'duration': 0,
+                'icon': icon,
+                'is_productive': is_productive
+            }
+        
+        categories[category]['hits'] += hits
+        categories[category]['duration'] += (duration or 0)
+        
+        # Adicionar site à lista
+        sites_list.append({
+            'domain': site,
+            'friendly_name': friendly_name,
+            'hits': hits,
+            'duration': duration or 0,
+            'last_access': last_access,
+            'category': category,
+            'icon': icon,
+            'is_productive': is_productive
+        })
+        
+        total_hits += hits
+        total_duration += (duration or 0)
+    
+    # Calcular score de produtividade
+    productive_hits = sum(cat['hits'] for cat in categories.values() if cat['is_productive'])
+    productivity_score = int((productive_hits / total_hits) * 100) if total_hits > 0 else 0
+    
+    # Gerar AI insight
+    ai_insight = AIService.generate_user_productivity_insight(categories)
+    
+    # Converter categorias para lista ordenada
+    categories_list = sorted(categories.values(), key=lambda x: x['hits'], reverse=True)
+    
+    # Dados para o gráfico temporal (acessos por hora/dia dependendo do período)
+    if period_type == 'daily':
+        # Agrupar por hora
+        time_query = db.session.query(
+            func.strftime('%H:00', InternetAccessLog.timestamp).label('time_label'),
+            func.count(InternetAccessLog.id).label('count')
+        ).filter(
+            InternetAccessLog.mac_address == device_mac,
+            InternetAccessLog.timestamp >= since,
+            InternetAccessLog.timestamp < until
+        ).group_by('time_label').all()
+        
+        # Gerar labels para todas as 24 horas
+        time_labels = [(now - timedelta(hours=i)).strftime('%H:00') for i in range(23, -1, -1)]
+    else:
+        # Agrupar por dia
+        time_query = db.session.query(
+            func.date(InternetAccessLog.timestamp).label('time_label'),
+            func.count(InternetAccessLog.id).label('count')
+        ).filter(
+            InternetAccessLog.mac_address == device_mac,
+            InternetAccessLog.timestamp >= since,
+            InternetAccessLog.timestamp < until
+        ).group_by('time_label').all()
+        
+        # Gerar labels para os dias do período
+        days_count = (until - since).days
+        time_labels = [(since + timedelta(days=i)).strftime('%Y-%m-%d') for i in range(days_count)]
+    
+    # Mapear contagens
+    time_counts = {str(t): c for t, c in time_query}
+    time_data = [time_counts.get(label, 0) for label in time_labels]
+    
+    return render_template('admin_productivity_device_details.html',
+                         admin=admin,
+                         device=device,
+                         period_type=period_type,
+                         period_label=period_label,
+                         start_date=start_date,
+                         end_date=end_date,
+                         total_hits=total_hits,
+                         total_duration=total_duration,
+                         productivity_score=productivity_score,
+                         ai_insight=ai_insight,
+                         categories_list=categories_list,
+                         sites_list=sites_list,
+                         time_labels=time_labels,
+                         time_data=time_data)
+
+
+
 @admin_bp.route('/monitoring/sources', methods=['GET', 'POST'])
 @admin_required
 def monitoring_sources():
@@ -1834,6 +2012,110 @@ def delete_monitoring_source(id):
 
 # ==================== DISPOSITIVOS CONHECIDOS ====================
 
+@admin_bp.route('/monitoring/devices/overview')
+@admin_required
+def monitoring_devices_overview():
+    """Página de visualização de todos os dispositivos e seus acessos com destaque para conhecidos"""
+    from models import InternetAccessLog, KnownDevice
+    from sqlalchemy import func
+    admin = get_current_admin()
+    
+    # Período de análise (últimas 24h por padrão)
+    days = request.args.get('days', 1, type=int)
+    since = datetime.utcnow() - timedelta(days=days)
+    
+    # Buscar dispositivos conhecidos
+    known_devices = KnownDevice.query.filter_by(is_active=True).all()
+    known_macs = [d.mac_address for d in known_devices]
+    
+    # Criar mapa de dispositivos conhecidos
+    known_devices_map = {d.mac_address: d for d in known_devices}
+    
+    # Estatísticas de dispositivos conhecidos (com acessos no período)
+    featured_devices = []
+    for device in known_devices:
+        # Contar acessos deste dispositivo no período
+        access_count = db.session.query(func.count(InternetAccessLog.id)).filter(
+            InternetAccessLog.mac_address == device.mac_address,
+            InternetAccessLog.timestamp >= since
+        ).scalar() or 0
+        
+        # Buscar sites mais acessados por este dispositivo
+        top_sites = db.session.query(
+            InternetAccessLog.website,
+            func.count(InternetAccessLog.id).label('hits')
+        ).filter(
+            InternetAccessLog.mac_address == device.mac_address,
+            InternetAccessLog.timestamp >= since
+        ).group_by(InternetAccessLog.website).order_by(func.count(InternetAccessLog.id).desc()).limit(3).all()
+        
+        # Buscar último acesso
+        last_log = InternetAccessLog.query.filter(
+            InternetAccessLog.mac_address == device.mac_address
+        ).order_by(InternetAccessLog.timestamp.desc()).first()
+        
+        featured_devices.append({
+            'device': device,
+            'access_count': access_count,
+            'top_sites': [{'domain': site, 'hits': hits} for site, hits in top_sites],
+            'last_access': last_log.timestamp if last_log else None,
+            'is_active_today': access_count > 0
+        })
+    
+    # Ordenar featured devices: ativos primeiro, depois por número de acessos
+    featured_devices.sort(key=lambda x: (not x['is_active_today'], -x['access_count']))
+    
+    # Buscar dispositivos desconhecidos (não estão em known_macs)
+    unknown_devices_query = db.session.query(
+        InternetAccessLog.ip_address,
+        InternetAccessLog.hostname,
+        InternetAccessLog.mac_address,
+        func.count(InternetAccessLog.id).label('hits'),
+        func.max(InternetAccessLog.timestamp).label('last_access')
+    ).filter(
+        InternetAccessLog.timestamp >= since,
+        InternetAccessLog.mac_address.isnot(None),
+        InternetAccessLog.mac_address != ""
+    )
+    
+    # Filtrar apenas os que NÃO estão em known_macs
+    if known_macs:
+        unknown_devices_query = unknown_devices_query.filter(
+            ~InternetAccessLog.mac_address.in_(known_macs)
+        )
+    
+    unknown_devices_raw = unknown_devices_query.group_by(
+        InternetAccessLog.ip_address,
+        InternetAccessLog.hostname,
+        InternetAccessLog.mac_address
+    ).order_by(func.count(InternetAccessLog.id).desc()).limit(50).all()
+    
+    # Processar dispositivos desconhecidos
+    unknown_devices = []
+    for ip, hostname, mac, hits, last_access in unknown_devices_raw:
+        unknown_devices.append({
+            'ip': ip,
+            'hostname': hostname or 'Desconhecido',
+            'mac': mac,
+            'hits': hits,
+            'last_access': last_access
+        })
+    
+    # Estatísticas gerais
+    total_known_accesses = sum(d['access_count'] for d in featured_devices)
+    total_unknown_accesses = sum(d['hits'] for d in unknown_devices)
+    active_known_devices = sum(1 for d in featured_devices if d['is_active_today'])
+    
+    return render_template('admin_monitoring_devices_overview.html',
+                         admin=admin,
+                         featured_devices=featured_devices,
+                         unknown_devices=unknown_devices,
+                         days=days,
+                         total_known_accesses=total_known_accesses,
+                         total_unknown_accesses=total_unknown_accesses,
+                         active_known_devices=active_known_devices)
+
+
 @admin_bp.route('/monitoring/devices')
 @admin_required
 def monitoring_devices():
@@ -1841,7 +2123,7 @@ def monitoring_devices():
     from models import KnownDevice
     admin = get_current_admin()
     devices = KnownDevice.query.order_by(KnownDevice.hostname).all()
-    return render_template('admin_monitoring_devices.html', admin=admin, devices=devices)
+    return render_template('admin_monitoring_devices.html', admin=admin, devices=devices, min_agent_version=config.MIN_AGENT_VERSION)
 
 
 @admin_bp.route('/monitoring/devices/new', methods=['GET', 'POST'])
@@ -1881,9 +2163,15 @@ def monitoring_device_new():
         db.session.commit()
         
         flash(f'Dispositivo {hostname} cadastrado com sucesso!', 'success')
-        return redirect(url_for('admin.monitoring_devices'))
+        return redirect(url_for('admin.monitoring_devices_overview')  )
+    
+    # Pré-preencher dados se vieram da query string
+    prefill_data = {
+        'mac_address': request.args.get('mac', ''),
+        'hostname': request.args.get('hostname', '')
+    }
         
-    return render_template('admin_monitoring_device_form.html', admin=admin, device=None)
+    return render_template('admin_monitoring_device_form.html', admin=admin, device=None, prefill=prefill_data)
 
 
 @admin_bp.route('/monitoring/devices/edit/<int:id>', methods=['GET', 'POST'])
@@ -2056,11 +2344,27 @@ def device_analytics(mac):
     
     logs_data = [{'hostname': row[0], 'count': row[1]} for row in logs_query]
     
+    # Tenta pingar o agente para dados em tempo real
+    agent_status = {'online': False, 'data': {}}
+    if device and device.last_ip:
+        import requests
+        try:
+            # Timeout curto para não travar o carregamento da página
+            resp = requests.get(f"http://{device.last_ip}:9090/status", 
+                                headers={"X-Agent-Token": config.AGENT_TOKEN},
+                                timeout=1.0)
+            if resp.status_code == 200:
+                agent_status['online'] = True
+                agent_status['data'] = resp.json()
+        except Exception:
+            pass
+
     # Análise de IA
     ai_analysis = ai_engine.analyze_behavior(
         device.hostname if device else f"Dispositivo {mac}", 
         mac, 
-        logs_data
+        logs_data,
+        agent_processes=agent_status.get('data', {}).get('processes', [])
     )
     
     return render_template('admin_device_analytics.html',
@@ -2069,6 +2373,7 @@ def device_analytics(mac):
                          mac=mac,
                          logs=logs_data,
                          ai_analysis=ai_analysis,
+                         agent_status=agent_status,
                          days=days)
 
 

@@ -94,9 +94,10 @@
                         <td class="text-xs">
                             {% if device.agent_version %}
                             <span
-                                class="badge {% if device.agent_version < config.MIN_AGENT_VERSION %}badge-warning{% else %}badge-primary{% endif %} mb-1">
+                                class="badge {% if device.agent_version < min_agent_version %}badge-warning{% else %}badge-primary{% endif %} mb-1">
                                 V{{ device.agent_version }}
                             </span>
+
                             {% else %}
                             <span class="badge badge-error mb-1">Sem Agente</span>
                             {% endif %}

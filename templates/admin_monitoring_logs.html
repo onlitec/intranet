@@ -47,6 +47,7 @@
                         <th>🕒 Data e Hora</th>
                         <th>💻 Dispositivo</th>
                         <th>🌐 Website / Destino</th>
+                        <th>📂 Processo / Usuário</th>
                         <th>⌛ Duração</th>
                         <th>🛡️ Status</th>
                         <th class="text-right">🛠️ Gestão</th>
@@ -56,7 +57,8 @@
                     {% for log in logs.items %}
                     {% set device_identifier = log.mac_address or log.ip_address or log.hostname %}
                     <tr {% if device_identifier %}class="row-clickable"
-                        onclick="if(!event.target.closest('.btn-action')) window.location='{{ url_for('admin.device_analytics', mac=log.mac_address) if log.mac_address else url_for('admin.monitoring_device_details', identifier=device_identifier) }}'"{% endif %}>
+                        onclick="if(!event.target.closest('.btn-action')) window.location='{{ url_for('admin.device_analytics', mac=log.mac_address) if log.mac_address else url_for('admin.monitoring_device_details', identifier=device_identifier) }}'"
+                        {% endif %}>
                         <td class="timestamp-badge">
                             {{ log.timestamp|localdatetime|strftime('%d/%m/%Y') }}<br>
                             <span class="text-lg font-bold text-primary">{{
@@ -65,7 +67,14 @@
                         <td>
                             <div class="log-device">
                                 <div class="device-icon">
-                                    {% set category = known_devices.get(log.mac_address) %}
+                                    {% set device_info = known_devices.get(log.mac_address) %}
+                                    {% if device_info is mapping %}
+                                    {% set category = device_info.get('category') %}
+                                    {% set has_agent = device_info.get('has_agent', false) %}
+                                    {% else %}
+                                    {% set category = device_info %}
+                                    {% set has_agent = false %}
+                                    {% endif %}
                                     {% if category == 'pc' %}💻
                                     {% elif category == 'smartphone' %}📱
                                     {% elif category == 'camera' %}📷
@@ -76,6 +85,7 @@
                                     {% elif log.hostname and 'SMARTPHONE' in log.hostname %}📱
                                     {% else %}💻{% endif %}
                                 </div>
+
                                 <div>
                                     <div class="font-bold flex items-center gap-2">
                                         {% if log.hostname %}
@@ -92,11 +102,17 @@
                                     <div class="flex items-center gap-2 mt-1">
                                         <code class="text-xs">{{ log.ip_address }}</code>
                                         {% if log.mac_address %}
-                                        <a href="{{ url_for('admin.device_analytics', mac=log.mac_address) }}"
-                                            class="btn-action text-accent hover:underline">
-                                            <code class="text-xs">{{ log.mac_address }}</code>
-                                        </a>
+                                        <div class="flex items-center gap-1">
+                                            {% if has_agent %}
+                                            <span class="badge badge-success"
+                                                style="font-size: 0.6rem; padding: 1px 4px;">Agente OK</span>
+                                            {% else %}
+                                            <span class="badge badge-error"
+                                                style="font-size: 0.6rem; padding: 1px 4px;">Sem Agente</span>
+                                            {% endif %}
+                                        </div>
                                         {% endif %}
+
                                     </div>
                                 </div>
                             </div>
@@ -108,6 +124,18 @@
                                     {{ log.website }}
                                 </div>
                             </div>
+                        </td>
+                        <td>
+                            {% if log.source_type == 'agent' %}
+                            <div class="flex flex-col">
+                                <span class="text-xs font-bold text-accent" style="font-size: 0.75rem;">{{
+                                    log.process_name or 'Processo Oculto' }}</span>
+                                <span class="text-muted" style="font-size: 0.65rem;">User: {{ log.user_context or 'N/A'
+                                    }}</span>
+                            </div>
+                            {% else %}
+                            <span class="text-muted" style="font-size: 0.65rem;"><i>Passivo (Router/Proxy)</i></span>
+                            {% endif %}
                         </td>
                         <td>
                             <span class="badge badge-secondary">{{ log.duration or '0' }}s</span>
@@ -132,7 +160,7 @@
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="6" class="text-center p-12">
+                        <td colspan="7" class="text-center p-12">
                             <div class="text-4xl mb-4">🔎</div>
                             <div class="text-lg font-bold">Nenhum registro encontrado</div>
                             <p class="text-muted">Tente ajustar seus filtros para encontrar o que procura.</p>

@@ -22,7 +22,9 @@
 
 <div class="grid grid-cols-1 gap-8">
     {% for user in users %}
-    <div class="card card-hud overflow-hidden">
+    <div class="card card-hud overflow-hidden card-clickable"
+        onclick="window.location.href='{{ url_for('admin.monitoring_productivity_device_details', device_mac=user.mac_address) }}'"
+        style="cursor: pointer;">
         <div class="card-header border-b bg-surface-alt">
             <div class="flex justify-between items-center w-full">
                 <div class="flex items-center gap-4">
@@ -60,8 +62,8 @@
                         <h4 class="text-sm font-bold flex items-center gap-2 mb-3 text-accent">
                             ✨ AI Insight
                         </h4>
-                        <div class="text-sm prose prose-invert opacity-90 leading-relaxed">
-                            {{ user.ai_insight | safe | replace('\n', '<br>') }}
+                        <div class="ai-insight-content">
+                            {{ user.ai_insight | safe }}
                         </div>
                     </div>
                 </div>
@@ -205,7 +207,45 @@
     }
 
     .bg-accent-dim {
-        background-color: var(--accent-dim);
+        background: linear-gradient(135deg, var(--accent-dim) 0%, rgba(59, 130, 246, 0.03) 100%);
+        border-left: 3px solid var(--accent);
+        box-shadow: inset 0 0 20px rgba(59, 130, 246, 0.05);
+    }
+
+    .ai-insight-content {
+        color: var(--text-secondary);
+        font-size: 0.875rem;
+        line-height: 1.6;
+        animation: fadeInScale 0.4s var(--ease-out);
+    }
+
+    .ai-insight-content p {
+        margin-bottom: 0.75rem;
+    }
+
+    .ai-insight-content p:last-child {
+        margin-bottom: 0;
+    }
+
+    .ai-insight-content strong {
+        color: var(--text-primary);
+        font-weight: 700;
+        background: linear-gradient(120deg, var(--accent-dim) 0%, var(--accent-dim) 100%);
+        background-repeat: no-repeat;
+        background-size: 100% 0.3em;
+        background-position: 0 90%;
+    }
+
+    @keyframes fadeInScale {
+        from {
+            opacity: 0;
+            transform: translateY(4px) scale(0.99);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
     }
 </style>
 {% endblock %}

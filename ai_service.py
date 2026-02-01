@@ -1,6 +1,7 @@
 import os
 import json
 import logging
+import markdown
 from datetime import datetime, timedelta
 import config
 from models import DomainCategorization, db
@@ -101,7 +102,9 @@ class AIService:
 
         insight = f"**Perfil: {profile}**\n\n"
         insight += f"{tone}\n\n"
-        insight += f"O uso principal é focado em **{top_cat_name}** ({top_percent:.1f}% do tráfego)."
+        # Exibir "acesso normal" ao invés de "Outros"
+        display_category = "acesso normal" if top_cat_name == "Outros" else top_cat_name
+        insight += f"O uso principal é focado em **{display_category}** ({top_percent:.1f}% do tráfego)."
 
         # Adicionar comentário sobre categoria secundária se relevante
         if len(sorted_cats) > 1:
@@ -110,4 +113,73 @@ class AIService:
             if sec_percent > 20:
                 insight += f" Também apresenta atividade significativa em **{sec_cat_name}**."
 
-        return insight
+        # Converte Markdown para HTML para renderização no template
+        return markdown.markdown(insight)
+
+    @staticmethod
+    def generate_device_summary(identifier, top_sites):
+        """Gera um resumo de análise de comportamento para um dispositivo específico"""
+        if not top_sites or len(top_sites) == 0:
+            return "Não há dados suficientes para gerar uma análise deste dispositivo no momento."
+        
+        # Analisar os top sites para identificar padrões
+        total_hits = sum(site[1] for site in top_sites)
+        total_duration = sum(site[2] or 0 for site in top_sites)
+        
+        # Categorizar sites
+        productive_count = 0
+        leisure_count = 0
+        categories_seen = set()
+        
+        for site_domain, hits, duration, last_access in top_sites:
+            # Tentar obter categorização
+            for domain_key, info in AIService.COMMON_DOMAINS.items():
+                if domain_key in site_domain:
+                    if info.get('prod', True):
+                        productive_count += hits
+                    else:
+                        leisure_count += hits
+                    categories_seen.add(info.get('cat', 'Outros'))
+                    break
+        
+        # Gerar resumo baseado nos padrões
+        summary = f"**Análise de Comportamento: {identifier}**\n\n"
+        
+        # Estatísticas gerais
+        summary += f"📊 **Estatísticas Gerais**\n"
+        summary += f"- Total de acessos únicos: **{len(top_sites)}** sites diferentes\n"
+        summary += f"- Volume total de requisições: **{total_hits}** acessos\n"
+        summary += f"- Tempo médio estimado: **{int(total_duration / 60)}** minutos\n\n"
+        
+        # Análise de perfil
+        if productive_count > leisure_count:
+            productivity_ratio = (productive_count / total_hits) * 100 if total_hits > 0 else 0
+            summary += f"✅ **Perfil Produtivo** ({productivity_ratio:.0f}%)\n"
+            summary += f"Este dispositivo demonstra um padrão de uso predominantemente voltado para atividades produtivas e profissionais.\n\n"
+        elif leisure_count > productive_count:
+            leisure_ratio = (leisure_count / total_hits) * 100 if total_hits > 0 else 0
+            summary += f"🎮 **Perfil de Lazer** ({leisure_ratio:.0f}%)\n"
+            summary += f"Há uma predominância de acessos a conteúdos de entretenimento e redes sociais.\n\n"
+        else:
+            summary += f"⚖️ **Perfil Equilibrado**\n"
+            summary += f"O dispositivo apresenta um uso balanceado entre atividades produtivas e de lazer.\n\n"
+        
+        # Categorias detectadas
+        if categories_seen:
+            summary += f"🏷️ **Categorias Detectadas**: {', '.join(sorted(categories_seen))}\n\n"
+        
+        # Top sites
+        summary += f"🌐 **Sites Mais Acessados**\n"
+        for i, (site_domain, hits, duration, last_access) in enumerate(top_sites[:5], 1):
+            # Tentar obter nome amigável
+            friendly_name = site_domain
+            for domain_key, info in AIService.COMMON_DOMAINS.items():
+                if domain_key in site_domain:
+                    friendly_name = info.get('name', site_domain)
+                    break
+            summary += f"{i}. **{friendly_name}** - {hits} acessos\n"
+        
+        summary += f"\n> [!TIP]\n> Use os filtros de data e site para análises mais detalhadas."
+        
+        return summary
+

@@ -16,6 +16,11 @@
             {% else %}
             Identidade Desconhecida <span class="text-muted text-sm font-normal">({{ mac }})</span>
             {% endif %}
+
+            {% if agent_status.online %}
+            <span class="badge badge-success ml-2 animate-pulse"
+                style="font-size: 0.6rem; vertical-align: middle;">Agente V2 Online</span>
+            {% endif %}
         </h1>
         <p class="content-subtitle">Análise comportamental e histórico de tráfego granular.</p>
     </div>
@@ -75,6 +80,26 @@
         {% endif %}
     </div>
 </div>
+
+{% if agent_status.online %}
+<div class="card mb-6 border-success">
+    <div class="card-header bg-success-soft flex justify-between items-center"
+        style="background: rgba(16, 185, 129, 0.1);">
+        <h3 class="card-title text-success">🚀 Processos Ativos (Tempo Real)</h3>
+        <span class="text-xs text-success" style="opacity: 0.8;">IP: {{ device.last_ip }}</span>
+    </div>
+    <div class="card-body">
+        <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+            {% for proc in agent_status.data.get('processes', [])[:12] %}
+            <div class="bg-surface p-2 rounded border border-surface-alt text-center">
+                <div class="text-xs font-bold truncate text-accent">{{ proc.name }}</div>
+                <div class="text-xxs text-muted" style="font-size: 0.6rem;">{{ proc.get('cpu', 0) }}% CPU</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endif %}
 
 <!-- Detailed Logs Table -->
 <div class="card">

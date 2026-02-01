@@ -250,9 +250,15 @@ class KnownDevice(db.Model):
     # Novos campos para Agente
     last_ip = db.Column(db.String(45))
     logged_user = db.Column(db.String(100))
+    user_domain = db.Column(db.String(100))
     os_info = db.Column(db.String(100))
     agent_version = db.Column(db.String(20))
     last_report = db.Column(db.DateTime)
+    uptime = db.Column(db.String(50))
+    login_time = db.Column(db.DateTime)
+    
+    # Relacionamento com inventário
+    software_inventory = db.relationship('SoftwareInventory', backref='device', lazy='dynamic', cascade='all, delete-orphan')
 
     def get_icon(self):
         icons = {
@@ -267,6 +273,22 @@ class KnownDevice(db.Model):
 
     def __repr__(self):
         return f'<KnownDevice {self.hostname} ({self.mac_address})>'
+
+
+class SoftwareInventory(db.Model):
+    """Inventário de software instalado reportado pelo agente"""
+    __tablename__ = 'software_inventory'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    device_id = db.Column(db.Integer, db.ForeignKey('known_devices.id'), nullable=False)
+    name = db.Column(db.String(255), nullable=False)
+    version = db.Column(db.String(100))
+    publisher = db.Column(db.String(255))
+    install_date = db.Column(db.String(20))
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def __repr__(self):
+        return f'<SoftwareInventory {self.name} on Device {self.device_id}>'
 
 
 class DeviceCommand(db.Model):
@@ -304,6 +326,10 @@ class InternetAccessLog(db.Model):
     bytes_sent = db.Column(db.BigInteger)
     bytes_received = db.Column(db.BigInteger)
     action = db.Column(db.String(20))  # 'allowed', 'blocked'
+    source_type = db.Column(db.String(20), default='syslog')  # syslog, agent
+    process_name = db.Column(db.String(100))
+    user_context = db.Column(db.String(100))
+
 
     # Índices compostos para acelerar consultas do dashboard
     __table_args__ = (

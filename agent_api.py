@@ -1,7 +1,7 @@
 import logging
 import time
 from flask import Blueprint, request, jsonify, current_app
-from models import db, KnownDevice, DeviceCommand
+from models import db, KnownDevice, DeviceCommand, InternetAccessLog, SoftwareInventory
 from datetime import datetime
 import config
 
@@ -96,8 +96,23 @@ def report_telemetry():
         device.last_ip = data.get('ip_address') or ip
         device.hostname = data.get('hostname', device.hostname)
         device.logged_user = data.get('logged_user')
+        device.user_domain = data.get('user_domain')
         device.os_info = data.get('os_info')
         device.agent_version = data.get('agent_version')
+        device.uptime = data.get('uptime')
+        
+        # Tratar login_time se enviado (ISO format sugerido)
+        login_time_str = data.get('login_time')
+        if login_time_str:
+            try:
+                # Tenta vários formatos comuns (ISO, timestamp, etc)
+                if isinstance(login_time_str, (int, float)):
+                   device.login_time = datetime.fromtimestamp(login_time_str)
+                else:
+                   device.login_time = datetime.fromisoformat(login_time_str.replace('Z', '+00:00'))
+            except Exception as e:
+                logger.warning(f"⚠️ Erro ao converter login_time para {mac}: {e}")
+
         device.last_report = datetime.utcnow()
         
         db.session.commit()
@@ -112,6 +127,59 @@ def report_telemetry():
     except Exception as e:
         db.session.rollback()
         logger.error(f"❌ Erro ao processar reporte do agente ({mac}): {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@agent_api.route('/api/v1/agent/access-logs', methods=['POST'])
+def report_access_logs():
+    """Recebe logs de acesso detalhados do agente (processos e conexões)"""
+    auth_token = request.headers.get('X-Agent-Token')
+    if auth_token != config.AGENT_TOKEN:
+        return jsonify({'status': 'error', 'message': 'Unauthorized'}), 401
+    
+    data = request.json
+    if not data or 'logs' not in data:
+        return jsonify({'status': 'error', 'message': 'No logs provided'}), 400
+    
+    mac = data.get('mac_address', '').upper()
+    if not mac:
+        return jsonify({'status': 'error', 'message': 'MAC address required'}), 400
+    
+    try:
+        device = KnownDevice.query.filter_by(mac_address=mac).first()
+        if not device:
+            return jsonify({'status': 'error', 'message': 'Device not found'}), 404
+            
+        logs = data.get('logs', [])
+        count = 0
+        
+        for entry in logs:
+            # Website é o remote_host
+            website = entry.get('remote_host')
+            if not website: continue
+            
+            new_log = InternetAccessLog(
+                source_id=None,
+                ip_address=entry.get('local_ip') or device.last_ip,
+                mac_address=mac,
+                hostname=device.hostname,
+                website=website,
+                full_url=website, 
+                timestamp=datetime.utcnow(),
+                action='allowed',
+                source_type='agent',
+                process_name=entry.get('process_name'),
+                user_context=entry.get('user_context') or device.logged_user
+            )
+            db.session.add(new_log)
+            count += 1
+            
+        db.session.commit()
+        return jsonify({'status': 'ok', 'message': f'{count} logs registered'})
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"❌ Erro ao salvar logs do agente ({mac}): {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
@@ -170,3 +238,54 @@ def report_command_result(command_id):
     logger.info(f"💾 Resultado do comando {command_id} recebido para o dispositivo {command.device_id}")
     
     return jsonify({'status': 'ok', 'message': 'Result received'})
+
+
+@agent_api.route('/api/v1/agent/inventory', methods=['POST'])
+def report_inventory():
+    """Recebe o inventário completo de softwares instalados"""
+    auth_token = request.headers.get('X-Agent-Token')
+    if auth_token != config.AGENT_TOKEN:
+        return jsonify({'status': 'error', 'message': 'Unauthorized'}), 401
+    
+    data = request.json
+    if not data or 'inventory' not in data:
+        return jsonify({'status': 'error', 'message': 'No inventory provided'}), 400
+    
+    mac = data.get('mac_address', '').upper()
+    if not mac:
+        return jsonify({'status': 'error', 'message': 'MAC address required'}), 400
+    
+    try:
+        device = KnownDevice.query.filter_by(mac_address=mac).first()
+        if not device:
+            return jsonify({'status': 'error', 'message': 'Device not found'}), 404
+            
+        inventory = data.get('inventory', [])
+        
+        # Em vez de append, o agente envia o "estado atual".
+        # Vamos limpar o inventário antigo e inserir o novo.
+        SoftwareInventory.query.filter_by(device_id=device.id).delete()
+        
+        count = 0
+        for item in inventory:
+            name = item.get('name')
+            if not name: continue
+            
+            new_item = SoftwareInventory(
+                device_id=device.id,
+                name=name,
+                version=item.get('version'),
+                publisher=item.get('publisher'),
+                install_date=item.get('install_date')
+            )
+            db.session.add(new_item)
+            count += 1
+            
+        db.session.commit()
+        logger.info(f"📦 Inventário atualizado para {mac}: {count} itens")
+        return jsonify({'status': 'ok', 'message': f'Inventory updated: {count} items'})
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"❌ Erro ao salvar inventário do agente ({mac}): {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500

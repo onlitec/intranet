@@ -1,0 +1,302 @@
+{% extends "base.html" %}
+
+{% block title %}Detalhes de Produtividade - {{ device.hostname }} - {{ super() }}{% endblock %}
+
+{% block content %}
+<div class="content-header">
+    <div>
+        <div class="flex items-center gap-3 mb-2">
+            <a href="{{ url_for('admin.monitoring_report_productivity') }}"
+                class="text-accent hover:text-accent-hover transition-colors">
+                ← Voltar
+            </a>
+        </div>
+        <h1 class="content-title">📊 Detalhes de Produtividade</h1>
+        <p class="content-subtitle">{{ device.hostname }} - {{ period_label }}</p>
+    </div>
+    <div class="header-actions">
+        <form class="flex gap-2 items-center flex-wrap">
+            <label class="text-sm text-muted">Período:</label>
+            <select name="period" class="form-select form-select-sm" onchange="this.form.submit()">
+                <option value="daily" {% if period_type=='daily' %}selected{% endif %}>Diário (24h)</option>
+                <option value="weekly" {% if period_type=='weekly' %}selected{% endif %}>Semanal (7 dias)</option>
+                <option value="monthly" {% if period_type=='monthly' %}selected{% endif %}>Mensal (30 dias)</option>
+                <option value="yearly" {% if period_type=='yearly' %}selected{% endif %}>Anual (365 dias)</option>
+                <option value="custom" {% if period_type=='custom' %}selected{% endif %}>Personalizado</option>
+            </select>
+
+            <div id="customDateInputs" style="display: {% if period_type=='custom' %}flex{% else %}none{% endif %};"
+                class="flex gap-2">
+                <input type="date" name="start_date" value="{{ start_date }}" class="form-input form-input-sm"
+                    placeholder="Data início">
+                <input type="date" name="end_date" value="{{ end_date }}" class="form-input form-input-sm"
+                    placeholder="Data fim">
+                <button type="submit" class="btn btn-primary btn-sm">Aplicar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Stats Overview -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+    <div class="card">
+        <div class="card-body text-center">
+            <div class="text-4xl font-bold" style="color: var(--accent);">{{ total_hits }}</div>
+            <div class="text-sm text-muted mt-2">Total de Acessos</div>
+        </div>
+    </div>
+    <div class="card">
+        <div class="card-body text-center">
+            <div class="text-4xl font-bold text-success">{{ productivity_score }}%</div>
+            <div class="text-sm text-muted mt-2">Score de Produtividade</div>
+        </div>
+    </div>
+    <div class="card">
+        <div class="card-body text-center">
+            <div class="text-4xl font-bold text-warning">{{ (total_duration / 60)|round|int }}</div>
+            <div class="text-sm text-muted mt-2">Minutos Ativos</div>
+        </div>
+    </div>
+</div>
+
+<!-- AI Insight & Chart -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+    <!-- AI Insight -->
+    <div class="card">
+        <div class="card-header border-b">
+            <h2 class="card-title text-lg">✨ AI Insight</h2>
+        </div>
+        <div class="card-body">
+            <div class="ai-insight-content">
+                {{ ai_insight | safe }}
+            </div>
+        </div>
+    </div>
+
+    <!-- Timeline Chart -->
+    <div class="card">
+        <div class="card-header border-b">
+            <h2 class="card-title text-lg">📈 Linha do Tempo</h2>
+        </div>
+        <div class="card-body">
+            <div style="height: 250px;">
+                <canvas id="timelineChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Category Distribution & Top Sites -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+    <!-- Categories -->
+    <div class="card">
+        <div class="card-header border-b">
+            <h2 class="card-title text-lg">📊 Distribuição por Categoria</h2>
+        </div>
+        <div class="card-body">
+            <div class="space-y-3">
+                {% for cat in categories_list[:10] %}
+                <div class="flex items-center justify-between p-3 rounded hover:bg-surface-alt transition-colors">
+                    <div class="flex items-center gap-3">
+                        <span class="text-2xl">{{ cat.icon }}</span>
+                        <div>
+                            <div class="font-medium">{{ cat.name }}</div>
+                            <div class="text-xs text-muted">{{ (cat.duration / 60)|round|int }} minutos</div>
+                        </div>
+                        {% if cat.is_productive %}
+                        <span class="badge badge-success badge-sm">Produtivo</span>
+                        {% else %}
+                        <span class="badge badge-error badge-sm">Lazer</span>
+                        {% endif %}
+                    </div>
+                    <div class="text-right">
+                        <div class="font-bold">{{ cat.hits }}</div>
+                        <div class="text-xs text-muted">acessos</div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Category Pie Chart -->
+    <div class="card">
+        <div class="card-header border-b">
+            <h2 class="card-title text-lg">🍰 Proporção de Uso</h2>
+        </div>
+        <div class="card-body">
+            <div style="height: 300px;">
+                <canvas id="categoryChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Detailed Sites Table -->
+<div class="card">
+    <div class="card-header border-b">
+        <h2 class="card-title text-lg">🌐 Sites Acessados ({{ sites_list|length }} total)</h2>
+    </div>
+    <div class="card-body p-0">
+        <div class="overflow-x-auto">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Ícone</th>
+                        <th>Site</th>
+                        <th>Categoria</th>
+                        <th>Acessos</th>
+                        <th>Duração</th>
+                        <th>Último Acesso</th>
+                        <th>Tipo</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for site in sites_list %}
+                    <tr>
+                        <td class="text-xl">{{ site.icon }}</td>
+                        <td>
+                            <div class="font-medium">{{ site.friendly_name }}</div>
+                            <div class="text-xs text-muted">{{ site.domain }}</div>
+                        </td>
+                        <td><span class="badge badge-secondary">{{ site.category }}</span></td>
+                        <td><span class="font-bold">{{ site.hits }}</span></td>
+                        <td>{{ (site.duration / 60)|round|int }} min</td>
+                        <td class="text-sm text-muted">
+                            {% if site.last_access %}
+                            {{ site.last_access.strftime('%d/%m %H:%M') }}
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if site.is_productive %}
+                            <span class="badge badge-success">Produtivo</span>
+                            {% else %}
+                            <span class="badge badge-error">Lazer</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center text-muted py-8">
+                            Nenhum dado disponível para o período selecionado.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    // Show/hide custom date inputs
+    document.querySelector('select[name="period"]').addEventListener('change', function () {
+        const customInputs = document.getElementById('customDateInputs');
+        customInputs.style.display = this.value === 'custom' ? 'flex' : 'none';
+    });
+
+    // Timeline Chart
+    const timelineCtx = document.getElementById('timelineChart').getContext('2d');
+    new Chart(timelineCtx, {
+        type: 'line',
+        data: {
+            labels: {{ time_labels | tojson }},
+        datasets: [{
+            label: 'Acessos',
+            data: {{ time_data | tojson }},
+        borderColor: 'rgb(59, 130, 246)',
+        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+        fill: true,
+        tension: 0.4
+            }]
+        },
+        options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: { display: false }
+        },
+        scales: {
+            y: {
+                beginAtZero: true,
+                grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                ticks: { color: 'rgba(255, 255, 255, 0.7)' }
+            },
+            x: {
+                grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                ticks: {
+                    color: 'rgba(255, 255, 255, 0.7)',
+                    maxRotation: 45,
+                    minRotation: 45
+                }
+            }
+        }
+    }
+    });
+
+    // Category Pie Chart
+    const categoryCtx = document.getElementById('categoryChart').getContext('2d');
+    new Chart(categoryCtx, {
+        type: 'doughnut',
+        data: {
+            labels: {{ categories_list | map(attribute = 'name') | list | tojson }},
+        datasets: [{
+            data: {{ categories_list | map(attribute = 'hits') | list | tojson }},
+        backgroundColor: [
+            '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
+            '#06b6d4', '#64748b', '#ec4899', '#14b8a6', '#f97316'
+        ],
+        borderWidth: 0
+            }]
+        },
+        options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                position: 'right',
+                labels: {
+                    boxWidth: 15,
+                    font: { size: 11 },
+                    color: 'rgba(255, 255, 255, 0.8)'
+                }
+            }
+        }
+    }
+    });
+</script>
+
+<style>
+    .ai-insight-content {
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+        line-height: 1.6;
+    }
+
+    .ai-insight-content p {
+        margin-bottom: 0.75rem;
+    }
+
+    .ai-insight-content strong {
+        color: var(--text-primary);
+        font-weight: 700;
+        background: linear-gradient(120deg, var(--accent-dim) 0%, var(--accent-dim) 100%);
+        background-repeat: no-repeat;
+        background-size: 100% 0.3em;
+        background-position: 0 90%;
+    }
+
+    .badge-sm {
+        font-size: 0.7rem;
+        padding: 0.15rem 0.5rem;
+    }
+
+    .table tbody tr:hover {
+        background-color: var(--bg-surface-alt);
+    }
+</style>
+{% endblock %}

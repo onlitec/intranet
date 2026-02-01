@@ -1286,3 +1286,64 @@ code,
     gap: 8px;
     flex-wrap: wrap;
 }
+
+/* ================================================
+   SUBMENU - HIERARCHICAL NAVIGATION
+   ================================================ */
+.nav-item-expandable {
+    cursor: pointer;
+}
+
+.nav-item-expandable::after {
+    content: '›';
+    margin-left: auto;
+    font-size: 1.2rem;
+    transition: transform var(--duration-fast) var(--ease-out);
+}
+
+.nav-item-expandable.expanded::after {
+    transform: rotate(90deg);
+}
+
+.nav-submenu {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height var(--duration-normal) var(--ease-out);
+}
+
+.nav-submenu.expanded {
+    max-height: 500px;
+}
+
+.nav-subitem {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px 8px 36px;
+    /* Indented */
+    margin-bottom: 2px;
+    color: var(--text-dim);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    border-radius: var(--radius-sm);
+    text-decoration: none;
+    transition: all var(--duration-fast) var(--ease-out);
+    position: relative;
+}
+
+.nav-subitem::before {
+    content: '─';
+    position: absolute;
+    left: 20px;
+    color: var(--text-muted);
+}
+
+.nav-subitem:hover {
+    color: var(--text-primary);
+    background: var(--bg-elevated);
+}
+
+.nav-subitem.active {
+    color: var(--accent);
+    background: var(--accent-dim);
+}
