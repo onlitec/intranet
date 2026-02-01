@@ -54,8 +54,9 @@
                 </thead>
                 <tbody>
                     {% for log in logs.items %}
-                    <tr class="row-clickable"
-                        onclick="if(!event.target.closest('.btn-action')) window.location='{{ url_for('admin.device_analytics', mac=log.mac_address) if log.mac_address else url_for('admin.monitoring_device_details', identifier=log.ip_address or log.hostname) }}'">
+                    {% set device_identifier = log.mac_address or log.ip_address or log.hostname %}
+                    <tr {% if device_identifier %}class="row-clickable"
+                        onclick="if(!event.target.closest('.btn-action')) window.location='{{ url_for('admin.device_analytics', mac=log.mac_address) if log.mac_address else url_for('admin.monitoring_device_details', identifier=device_identifier) }}'"{% endif %}>
                         <td class="timestamp-badge">
                             {{ log.timestamp|localdatetime|strftime('%d/%m/%Y') }}<br>
                             <span class="text-lg font-bold text-primary">{{
