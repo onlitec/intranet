@@ -38,7 +38,8 @@
     <!-- Sidebar -->
     <aside class="sidebar" id="app-sidebar">
         <div class="sidebar-header">
-            <a href="{{ url_for('home') }}" class="sidebar-logo">
+            <a href="{{ url_for('admin.dashboard') if session.get('is_admin') else url_for('dashboard') if current_user.is_authenticated else url_for('home') }}"
+                class="sidebar-logo">
                 <img src="{{ settings.site_logo }}" alt="Logo" onerror="this.style.display='none'">
                 <div class="logo-meta">
                     <span class="logo-text">{{ settings.site_title }}</span>
