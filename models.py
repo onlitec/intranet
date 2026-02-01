@@ -246,12 +246,19 @@ class KnownDevice(db.Model):
     notes = db.Column(db.Text)
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Novos campos para Agente
+    last_ip = db.Column(db.String(45))
+    logged_user = db.Column(db.String(100))
+    os_info = db.Column(db.String(100))
+    agent_version = db.Column(db.String(20))
+    last_report = db.Column(db.DateTime)
 
     def get_icon(self):
         icons = {
             'pc': '💻',
             'smartphone': '📱',
-            'camera': '📷',
+            'camera': '📹',
             'pabx': '☎️',
             'server': '🖥️',
             'other': '🔌'
@@ -260,6 +267,25 @@ class KnownDevice(db.Model):
 
     def __repr__(self):
         return f'<KnownDevice {self.hostname} ({self.mac_address})>'
+
+
+class DeviceCommand(db.Model):
+    """Fila de comandos para execução remota no Agente"""
+    __tablename__ = 'device_commands'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    device_id = db.Column(db.Integer, db.ForeignKey('known_devices.id'), nullable=False)
+    command_text = db.Column(db.Text, nullable=False)
+    status = db.Column(db.String(20), default='pending') # pending, running, success, error, cancelled
+    result_output = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    executed_at = db.Column(db.DateTime)
+    
+    # Relacionamento
+    device = db.relationship('KnownDevice', backref=db.backref('commands', lazy=True))
+
+    def __repr__(self):
+        return f'<DeviceCommand {self.id} for device {self.device_id}: {self.status}>'
 
 
 class InternetAccessLog(db.Model):
@@ -278,6 +304,29 @@ class InternetAccessLog(db.Model):
     bytes_sent = db.Column(db.BigInteger)
     bytes_received = db.Column(db.BigInteger)
     action = db.Column(db.String(20))  # 'allowed', 'blocked'
+
+    # Índices compostos para acelerar consultas do dashboard
+    __table_args__ = (
+        db.Index('idx_website_timestamp', 'website', 'timestamp'),
+        db.Index('idx_mac_timestamp', 'mac_address', 'timestamp'),
+        db.Index('idx_ip_timestamp', 'ip_address', 'timestamp'),
+    )
+
+
+class DomainCategorization(db.Model):
+    """Catalogação inteligente de domínios via IA"""
+    __tablename__ = 'domain_categorizations'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    domain = db.Column(db.String(255), unique=True, nullable=False, index=True)
+    category = db.Column(db.String(50))  # Ex: Rede Social, Streaming, Update, Trabalho
+    description = db.Column(db.Text)      # Explicação amigável do que é o domínio
+    friendly_name = db.Column(db.String(100)) # Noma amigável (ex: Windows Update, Netflix)
+    icon = db.Column(db.String(20))       # Emoji ou ícone sugerido
+    last_analyzed = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f'<DomainCategorization {self.domain} -> {self.friendly_name}>'
 
 
 def init_db(app):
@@ -328,3 +377,55 @@ def init_db(app):
             SystemSetting.set_value('site_favicon', '/static/images/logo.png', 'Caminho do Favicon')
         
         return db
+
+
+class FileServer(db.Model):
+    """Servidores de arquivos NAS configurados (ES-SERVIDOR, Synology, QNAP, TrueNAS, etc.)"""
+    __tablename__ = 'file_servers'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)  # Nome amigável
+    server_type = db.Column(db.String(30), nullable=False)  # es-servidor, synology, qnap, truenas, generic
+    protocol = db.Column(db.String(20), nullable=False)  # smb, nfs, ftp, sftp, webdav
+    host = db.Column(db.String(255), nullable=False)  # IP ou hostname
+    port = db.Column(db.Integer)  # Porta (opcional, usa padrão do protocolo)
+    username = db.Column(db.String(100))  # Usuário para autenticação
+    password_encrypted = db.Column(db.Text)  # Senha criptografada
+    base_path = db.Column(db.String(500))  # Caminho base (ex: /volume1/data)
+    api_key = db.Column(db.String(255))  # Chave API (para ES-SERVIDOR, Synology DSM, etc.)
+    is_active = db.Column(db.Boolean, default=True)
+    last_check = db.Column(db.DateTime)  # Último teste de conexão
+    status = db.Column(db.String(20), default='unknown')  # online, offline, unknown, error
+    status_message = db.Column(db.Text)  # Mensagem de erro ou info
+    notes = db.Column(db.Text)  # Observações
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    def get_icon(self):
+        """Retorna ícone baseado no tipo de servidor"""
+        icons = {
+            'es-servidor': '🖥️',
+            'synology': '📦',
+            'qnap': '🗄️',
+            'truenas': '💾',
+            'generic': '🔌'
+        }
+        return icons.get(self.server_type, '🔌')
+    
+    def get_protocol_port(self):
+        """Retorna porta padrão do protocolo se não especificada"""
+        if self.port:
+            return self.port
+        defaults = {
+            'smb': 445,
+            'nfs': 2049,
+            'ftp': 21,
+            'sftp': 22,
+            'webdav': 80,
+            'webdavs': 443
+        }
+        return defaults.get(self.protocol, 0)
+    
+    def __repr__(self):
+        return f'<FileServer {self.name} ({self.server_type})>'
+

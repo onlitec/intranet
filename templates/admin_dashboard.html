@@ -1,263 +1,174 @@
 {% extends "base.html" %}
 
-{% block title %}Dashboard{% endblock %}
-{% block page_title %}Dashboard{% endblock %}
+{% block title %}Visão Geral{% endblock %}
+{% block page_title %}Visão Geral de Monitoramento{% endblock %}
 {% block page_subtitle %}<p class="topbar-subtitle">Bem-vindo, {{ admin.full_name }}</p>{% endblock %}
 
 {% block content %}
-<!-- ES-SERVIDOR Stats Cards -->
-<div class="stats-grid">
-    <div class="stat-card">
-        <div class="stat-icon primary">👥</div>
-        <div class="stat-info">
-            <div class="stat-value">{{ server_stats.total_users }}</div>
-            <div class="stat-label">Usuários ES-SERVIDOR</div>
-        </div>
+
+<!-- 1. SEÇÃO DE TRÁFEGO DE INTERNET -->
+<div class="mb-8">
+    <div class="flex justify-between items-center mb-4">
+        <h2 class="text-xl font-bold flex items-center gap-2">
+            🌐 Tráfego de Internet (Hoje)
+        </h2>
+        <a href="{{ url_for('admin.monitoring_dashboard') }}" class="btn btn-sm btn-outline">
+            Ver Detalhes →
+        </a>
     </div>
 
-    <div class="stat-card">
-        <div class="stat-icon success">💼</div>
-        <div class="stat-info">
-            <div class="stat-value">{{ server_stats.smb_users }}</div>
-            <div class="stat-label">Usuários SMB</div>
+    <div class="stats-grid">
+        <div class="stat-card stat-primary">
+            <div class="stat-icon primary">📉</div>
+            <div class="stat-label">Total de Requisições</div>
+            <div class="stat-value">{{ "{:,}".format(traffic_stats.total_requests).replace(',', '.') }}</div>
         </div>
-    </div>
 
-    <div class="stat-card">
-        <div class="stat-icon warning">📁</div>
-        <div class="stat-info">
-            <div class="stat-value">{{ server_stats.shares }}</div>
-            <div class="stat-label">Compartilhamentos</div>
+        <div class="stat-card stat-error">
+            <div class="stat-icon error">🛡️</div>
+            <div class="stat-label">Bloqueios de Segurança</div>
+            <div class="stat-value">{{ "{:,}".format(traffic_stats.blocked_requests).replace(',', '.') }}</div>
         </div>
-    </div>
 
-    <div class="stat-card">
-        <div class="stat-icon error">🔑</div>
-        <div class="stat-info">
-            <div class="stat-value">{{ stats.total_users }}</div>
-            <div class="stat-label">Usuários Intranet</div>
+        <div class="stat-card stat-warning">
+            <div class="stat-icon warning">🏆</div>
+            <div class="stat-label">Top Usuário</div>
+            <div class="stat-value text-lg">{{ traffic_stats.top_user }}</div>
         </div>
-    </div>
-</div>
 
-<!-- Charts Section -->
-<div class="dashboard-grid" style="grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); margin-bottom: 24px;">
-    <!-- Chart: Activity by Action -->
-    <div class="card">
-        <div class="card-header">
-            <h3 class="card-title">📊 Atividade por Operação</h3>
-        </div>
-        <div class="card-body" style="height: 300px; position: relative;">
-            <canvas id="actionsChart"></canvas>
-        </div>
-    </div>
-
-    <!-- Chart: Activity by Folder -->
-    <div class="card">
-        <div class="card-header">
-            <h3 class="card-title">📁 Uso por Pasta (Top 5)</h3>
-        </div>
-        <div class="card-body" style="height: 300px; position: relative;">
-            <canvas id="foldersChart"></canvas>
+        <div class="stat-card stat-success">
+            <div class="stat-icon success">🛰️</div>
+            <div class="stat-label">Agentes Ativos</div>
+            <div class="stat-value">{{ stats.online_agents }} <span style="font-size: 0.8rem; opacity: 0.5;">/ {{
+                    stats.managed_devices }}</span></div>
         </div>
     </div>
 </div>
 
-<!-- Dashboard Info Grid -->
-<div class="dashboard-grid">
-    <!-- Server Status -->
-    <div class="card">
-        <div class="card-header">
-            <h3 class="card-title">Status do Servidor</h3>
-        </div>
-        <div class="card-body">
-            <div class="status-indicator {% if esservidor_online %}status-online{% else %}status-offline{% endif %}"
-                style="margin-bottom: 16px;">
-                <span class="status-dot"></span>
-                <span style="font-weight: 600;">{{ 'Online' if esservidor_online else 'Offline' }}</span>
-            </div>
-            <p class="text-muted text-sm">IP: <code>{{ esservidor_ip }}</code></p>
-        </div>
+<!-- 2. SEÇÃO DE SERVIDORES NAS -->
+<div class="mb-8">
+    <div class="flex justify-between items-center mb-4">
+        <h2 class="text-xl font-bold flex items-center gap-2">
+            🖥️ Servidores de Arquivos NAS
+        </h2>
+        <a href="{{ url_for('admin.file_servers') }}" class="btn btn-sm btn-outline">
+            Gerenciar →
+        </a>
     </div>
 
-    <!-- Quick Actions -->
-    <div class="card">
-        <div class="card-header">
-            <h3 class="card-title">Ações Rápidas</h3>
-        </div>
-        <div class="card-body">
-            <div class="quick-actions">
-                <a href="{{ url_for('admin.users_new') }}" class="btn btn-primary">
-                    ➕ Novo Usuário
-                </a>
-                <a href="{{ url_for('admin.audit_logs') }}" class="btn btn-secondary">
-                    🔍 Atividades do Servidor
-                </a>
-                <a href="{{ url_for('admin.users_list') }}" class="btn btn-ghost">
-                    👥 Gerenciar
-                </a>
+    {% if nas_servers %}
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {% for server in nas_servers %}
+        <div class="card border-{{ 'success' if server.status == 'online' else 'error' }}">
+            <div class="card-body p-4 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <span class="text-2xl">{{ server.get_icon() }}</span>
+                    <div>
+                        <div class="font-bold">{{ server.name }}</div>
+                        <div class="text-xs text-muted">{{ server.host }}</div>
+                    </div>
+                </div>
+                <div class="badge badge-{{ 'success' if server.status == 'online' else 'error' }} badge-sm">
+                    {{ server.status|upper }}
+                </div>
             </div>
         </div>
+        {% endfor %}
     </div>
+    {% else %}
+    <div class="card border-dashed p-6 text-center">
+        <p class="text-muted mb-2">Nenhum servidor NAS configurado.</p>
+        <a href="{{ url_for('admin.file_server_new') }}" class="btn btn-sm btn-primary">+ Adicionar Servidor</a>
+    </div>
+    {% endif %}
 </div>
 
-<!-- Recent Activity -->
-<div class="card">
-    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
-        <h3 class="card-title">Últimos Acessos</h3>
-        <a href="{{ url_for('admin.logs') }}" class="btn btn-ghost btn-sm">Ver Todos →</a>
-    </div>
-    <div class="card-body" style="padding: 0;">
-        {% if recent_logs %}
-        <div class="table-container">
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>Data/Hora</th>
-                        <th>Usuário</th>
-                        <th>Ação</th>
-                        <th>IP</th>
-                        <th>Status</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for log in recent_logs %}
-                    <tr>
-                        <td>{{ log.timestamp.strftime('%d/%m/%Y %H:%M') }}</td>
-                        <td><strong>{{ log.username }}</strong></td>
-                        <td>
-                            {% if log.action == 'login' %}
-                            <span class="badge badge-success badge-dot">Login</span>
-                            {% elif log.action == 'logout' %}
-                            <span class="badge badge-secondary badge-dot">Logout</span>
-                            {% else %}
-                            <span class="badge badge-info">{{ log.action }}</span>
-                            {% endif %}
-                        </td>
-                        <td><code>{{ log.ip_address or 'N/A' }}</code></td>
-                        <td>
-                            {% if log.success or log.action == 'login' %}
-                            <span class="badge badge-success">✓ OK</span>
-                            {% else %}
-                            <span class="badge badge-error">✕ Falha</span>
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+<!-- 3. SEÇÃO DO ES-SERVIDOR (Condicional) -->
+{% if has_active_esservidor %}
+<div class="mb-8">
+    <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
+        📂 Gestão ES-SERVIDOR
+    </h2>
+
+    <div class="dashboard-grid">
+        <!-- Status ES-SERVIDOR -->
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">Status do Servidor</h3>
+            </div>
+            <div class="card-body">
+                <div class="flex items-center gap-2 mb-2">
+                    <div class="w-3 h-3 rounded-full bg-{{ 'success' if esservidor_online else 'error' }}"></div>
+                    <span class="font-bold">{{ 'Online' if esservidor_online else 'Offline' }}</span>
+                </div>
+                <p class="text-sm text-muted">IP: <code>{{ esservidor_ip }}</code></p>
+
+                <div class="mt-4 grid grid-cols-2 gap-4">
+                    <div class="text-center p-2 bg-surface-alt rounded">
+                        <div class="text-xs text-muted">Usuários</div>
+                        <div class="font-bold text-lg">{{ server_stats.total_users }}</div>
+                    </div>
+                    <div class="text-center p-2 bg-surface-alt rounded">
+                        <div class="text-xs text-muted">Shares</div>
+                        <div class="font-bold text-lg">{{ server_stats.shares }}</div>
+                    </div>
+                </div>
+            </div>
         </div>
-        {% else %}
-        <div class="empty-state">
-            <div class="empty-state-icon">📋</div>
-            <h3 class="empty-state-title">Nenhum log recente</h3>
-            <p class="empty-state-description">Os acessos aparecerão aqui automaticamente.</p>
+        <!-- Activity Chart -->
+        <div class="card col-span-2">
+            <div class="card-header">
+                <h3 class="card-title">📊 Atividade de Arquivos</h3>
+                <a href="{{ url_for('admin.audit_logs') }}" class="btn btn-sm btn-outline">Logs →</a>
+            </div>
+            <div class="card-body" style="height: 250px;">
+                <canvas id="actionsChart"></canvas>
+            </div>
         </div>
-        {% endif %}
     </div>
 </div>
+{% endif %}
+
 {% endblock %}
 
 {% block extra_scripts %}
+{% if has_active_esservidor %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-    document.addEventListener('DOMContentLoaded', function () {
-        // Cores do Tema Premium
-        const colors = {
-            bg: [
-                'rgba(37, 99, 235, 0.2)', // Acessos (Blue)
-                'rgba(16, 185, 129, 0.2)', // Edições (Green)
-                'rgba(245, 158, 11, 0.2)', // Criações (Orange)
-                'rgba(239, 68, 68, 0.2)',  // Deleções (Red)
-                'rgba(99, 102, 241, 0.2)'  // Negados (Indigo)
-            ],
-            border: [
-                '#2563eb', '#10b981', '#f59e0b', '#ef4444', '#6366f1'
-            ]
-        };
+    // Chart data from Flask
+    const SCD = {{ server_chart_data | tojson }};
 
-        // 1. Gráfico de Ações
-        const actionsCtx = document.getElementById('actionsChart');
-        if (actionsCtx) {
-            new Chart(actionsCtx.getContext('2d'), {
-                type: 'bar',
-                data: {
-                    labels: {{ chart_data.labels | tojson }},
-        datasets: [{
-            label: 'Registros',
-            data: {{ chart_data.action_counts | tojson }},
-        backgroundColor: colors.bg,
-        borderColor: colors.border,
-        borderWidth: 1,
-        borderRadius: 4
-                }]
-            },
-        options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-            legend: { display: false },
-            tooltip: {
-                backgroundColor: 'rgba(255, 255, 255, 0.9)',
-                titleColor: '#1e293b',
-                bodyColor: '#1e293b',
-                borderColor: '#e2e8f0',
-                borderWidth: 1
-            }
-        },
-        scales: {
-            y: {
-                beginAtZero: true,
-                grid: { color: 'rgba(0,0,0,0.05)' },
-                ticks: { stepSize: 1 }
-            },
-            x: { grid: { display: false } }
-        }
-    }
-        });
-    }
-
-    // 2. Gráfico de Pastas (Top 5)
-    const foldersCtx = document.getElementById('foldersChart');
-    if (foldersCtx) {
-        new Chart(foldersCtx.getContext('2d'), {
+    if (SCD.labels && SCD.labels.length > 0) {
+        const ctxActions = document.getElementById('actionsChart').getContext('2d');
+        new Chart(ctxActions, {
             type: 'bar',
             data: {
-                labels: {{ chart_data.folders | tojson }},
-    datasets: [{
-        label: 'Movimentações',
-        data: {{ chart_data.counts | tojson }},
-        backgroundColor: 'rgba(59, 130, 246, 0.2)',
-        borderColor: '#3b82f6',
-        borderWidth: 1,
-        borderRadius: 4
+                labels: SCD.labels,
+                datasets: [{
+                    label: 'Operações',
+                    data: SCD.action_counts,
+                    backgroundColor: [
+                        'rgba(6, 182, 212, 0.6)',
+                        'rgba(245, 158, 11, 0.6)',
+                        'rgba(16, 185, 129, 0.6)',
+                        'rgba(239, 68, 68, 0.6)',
+                        'rgba(107, 114, 128, 0.6)'
+                    ],
+                    borderColor: [
+                        '#06b6d4', '#f59e0b', '#10b981', '#ef4444', '#6b7280'
+                    ],
+                    borderWidth: 1
                 }]
             },
-    options: {
-        indexAxis: 'y',
-            responsive: true,
+            options: {
+                responsive: true,
                 maintainAspectRatio: false,
-                    plugins: {
-            legend: { display: false },
-            tooltip: {
-                backgroundColor: 'rgba(255, 255, 255, 0.9)',
-                    titleColor: '#1e293b',
-                        bodyColor: '#1e293b',
-                            borderColor: '#e2e8f0',
-                                borderWidth: 1
+                scales: {
+                    y: { beginAtZero: true }
+                }
             }
-        },
-        scales: {
-            x: {
-                beginAtZero: true,
-                    grid: { color: 'rgba(0,0,0,0.05)' },
-                ticks: { stepSize: 1 }
-            },
-            y: { grid: { display: false } }
-        }
-    }
         });
     }
-});
 </script>
+{% endif %}
 {% endblock %}

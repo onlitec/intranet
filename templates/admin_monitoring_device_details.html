@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+
+{% block title %}Detalhes do Dispositivo - {{ device.hostname or identifier }}{% endblock %}
+{% block page_title %}Monitoramento: Dispositivo{% endblock %}
+{% block page_subtitle %}
+<p class="topbar-subtitle">Histórico de acessos para <strong>{{ device.hostname or identifier }}</strong>{% if
+    (device.ip_address or device.temp_ip) and (device.hostname != (device.ip_address or device.temp_ip)) %} <span
+        class="text-muted">({{ device.ip_address or device.temp_ip }})</span>{% endif %}</p>
+{% endblock %}
+
+{% block content %}
+<!-- AI Insight Report -->
+<div class="card ai-card mb-6">
+    <div class="card-header ai-header">
+        <h3 class="card-title text-white">✨ Análise Inteligente da Navegação</h3>
+        <span class="badge badge-ai">BETA</span>
+    </div>
+    <div class="card-body ai-body">
+        <div class="ai-content">
+            {{ ai_summary|safe if ai_summary else 'Iniciando análise inteligente...' }}
+        </div>
+    </div>
+</div>
+
+<!-- Device Info & Stats Summary -->
+<div class="stats-grid mb-6">
+    <div class="stat-card stat-primary">
+        <div class="stat-icon primary">{{ device.get_icon() }}</div>
+        <div class="stat-info">
+            <div class="stat-value">{{ total_requests }}</div>
+            <div class="stat-label">Total de Requisições</div>
+        </div>
+    </div>
+
+    <div class="stat-card">
+        <div class="stat-icon info">🌐</div>
+        <div class="stat-info">
+            <div class="stat-value">{{ top_sites|length }}</div>
+            <div class="stat-label">Domínios Diferentes</div>
+        </div>
+    </div>
+
+    <div class="stat-card">
+        <div class="stat-icon warning">🕒</div>
+        <div class="stat-info">
+            <div class="stat-value">Hoje</div>
+            <div class="stat-label">Atividade Recente</div>
+        </div>
+    </div>
+</div>
+
+<div class="dashboard-grid">
+    <!-- Top Sites for this Device -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">🌐 Sites Mais Acessados</h3>
+        </div>
+        <div class="card-body">
+            <div class="table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Site/Domínio</th>
+                            <th style="text-align: right;">Acessos</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% if top_sites %}
+                        {% set dev_ip = device.ip_address or device.temp_ip or identifier %}
+                        {% set dev_host = device.hostname if device.hostname != 'Dispositivo Desconhecido' else '' %}
+                        {% for site in top_sites %}
+                        <tr class="row-clickable"
+                            onclick="window.location='{{ url_for('admin.monitoring_logs', site=site.website, ip=dev_ip, hostname=dev_host) }}'">
+                            <td>{{ site.website }}</td>
+                            <td style="text-align: right;"><strong>{{ site.hit_count }}</strong></td>
+                        </tr>
+                        {% endfor %}
+                        {% else %}
+                        <tr>
+                            <td colspan="2" class="text-center">Nenhum dado disponível</td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Device Identity -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">🆔 Informações do Dispositivo</h3>
+        </div>
+        <div class="card-body">
+            <div class="info-list">
+                <div class="info-item"
+                    style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--border-color);">
+                    <span class="text-muted">Hostname:</span>
+                    <span class="fw-600">{{ device.hostname or 'N/A' }}</span>
+                </div>
+                <div class="info-item"
+                    style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--border-color);">
+                    <span class="text-muted">Endereço IP:</span>
+                    <span class="fw-600"><code>{{ device.ip_address or identifier }}</code></span>
+                </div>
+                <div class="info-item"
+                    style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--border-color);">
+                    <span class="text-muted">MAC Address:</span>
+                    <span class="fw-600"><code>{{ device.mac_address or 'Desconhecido' }}</code></span>
+                </div>
+                <div class="info-item" style="display: flex; justify-content: space-between; padding: 12px 0;">
+                    <span class="text-muted">Categoria:</span>
+                    <span class="badge badge-info">{{ device.category|capitalize }}</span>
+                </div>
+            </div>
+            <div class="mt-4">
+                {% set dev_ip = device.ip_address or device.temp_ip or identifier %}
+                {% set dev_host = device.hostname if device.hostname != 'Dispositivo Desconhecido' else '' %}
+                <a href="{{ url_for('admin.monitoring_logs', ip=dev_ip, hostname=dev_host) }}"
+                    class="btn btn-primary w-100">
+                    🔍 Ver Todos os Logs Detalhados
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Access Log Table -->
+<div class="card mt-6">
+    <div class="card-header">
+        <h3 class="card-title">📋 Logs Recentes</h3>
+    </div>
+    <div class="card-body" style="padding: 0;">
+        <div class="table-container">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Horário</th>
+                        <th>Website</th>
+                        <th>Ação</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in recent_logs %}
+                    <tr>
+                        <td style="white-space: nowrap; font-size: var(--text-xs);">
+                            {{ log.timestamp|localdatetime|strftime('%d/%m %H:%M:%S') }}
+                        </td>
+                        <td>
+                            <div class="text-truncate" style="max-width: 400px;" title="{{ log.website }}">
+                                {{ log.website }}
+                            </div>
+                        </td>
+                        <td>
+                            {% if log.action == 'allowed' %}
+                            <span class="badge badge-success">Permitido</span>
+                            {% else %}
+                            <span class="badge badge-error">Bloqueado</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<style>
+    .fw-600 {
+        font-weight: 600;
+    }
+
+    .mt-4 {
+        margin-top: 1rem;
+    }
+
+    .mt-6 {
+        margin-top: 1.5rem;
+    }
+
+    .mb-6 {
+        margin-bottom: 1.5rem;
+    }
+
+    .w-100 {
+        width: 100%;
+    }
+</style>
+{% endblock %}

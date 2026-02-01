@@ -1,0 +1,293 @@
+{% extends "base.html" %}
+
+{% block title %}Análise de Layout e Guia Técnico{% endblock %}
+{% block page_title %}Análise de Layout{% endblock %}
+{% block page_subtitle %}Propostas de melhoria visual e técnica para a Intranet ES-SERVIDOR{% endblock %}
+
+{% block extra_head %}
+<!-- Adicionando Tailwind CSS para esta página específica -->
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+    /* Reset de conflitos com style.css geral */
+    .app-layout .main-content {
+        padding: 0 !important;
+    }
+
+    .card {
+        border: none !important;
+        box-shadow: none !important;
+    }
+
+    /* Syntax Highlighting Fake */
+    pre {
+        background: #1e293b;
+        color: #e2e8f0;
+        padding: 1.5rem;
+        border-radius: 0.5rem;
+        overflow-x: auto;
+        font-family: 'Fira Code', monospace;
+    }
+
+    .code-comment {
+        color: #64748b;
+    }
+
+    .code-keyword {
+        color: #8b5cf6;
+    }
+
+    .code-string {
+        color: #10b981;
+    }
+
+    .code-boolean {
+        color: #f59e0b;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="bg-gray-50 min-h-screen font-sans text-slate-900">
+    <!-- Hero Section -->
+    <div class="bg-white border-b border-gray-200">
+        <div class="max-w-7xl mx-auto px-6 py-12">
+            <h1 class="text-4xl font-extrabold text-slate-900 mb-4">Relatório de Evolução de Interface</h1>
+            <p class="text-xl text-slate-600 max-w-3xl">Uma análise detalhada das melhorias propostas para elevar a
+                experiência do usuário e a eficiência técnica da plataforma.</p>
+        </div>
+    </div>
+
+    <!-- Melhoria 1: Mockups Antes e Depois -->
+    <div class="max-w-7xl mx-auto px-6 py-16">
+        <div class="flex items-center gap-3 mb-8">
+            <span class="text-3xl">🎨</span>
+            <h2 class="text-3xl font-bold">Visualização das Melhorias (Antes e Depois)</h2>
+        </div>
+
+        <div class="grid grid-cols-1 gap-12">
+            <!-- Dashboard Card -->
+            <div
+                class="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100 transform transition hover:scale-[1.01]">
+                <div class="p-8 border-b border-gray-100 flex justify-between items-center">
+                    <div>
+                        <h3 class="text-2xl font-bold text-blue-600">01. Evolução do Dashboard</h3>
+                        <p class="text-slate-500 mt-1">Transição de listas estáticas para grades métricas interativas.
+                        </p>
+                    </div>
+                </div>
+                <div class="p-1 text-center bg-gray-100">
+                    <img src="{{ url_for('static', filename='images/mockups/dashboard_mockup_comparison_1769825084061.png') }}"
+                        alt="Dashboard Comparison" class="mx-auto rounded-lg shadow-inner max-h-[600px]">
+                </div>
+                <div class="p-8 bg-blue-50 grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="flex gap-4">
+                        <div
+                            class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 flex-shrink-0">
+                            ✓</div>
+                        <div>
+                            <h4 class="font-bold">Cards Métricos</h4>
+                            <p class="text-sm text-slate-600">Informações vitais em destaque com indicadores de status
+                                visuais.</p>
+                        </div>
+                    </div>
+                    <div class="flex gap-4">
+                        <div
+                            class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 flex-shrink-0">
+                            ✓</div>
+                        <div>
+                            <h4 class="font-bold">Gráficos de Tendência</h4>
+                            <p class="text-sm text-slate-600">Visualização de histórico (Line/Doughnut) para tomada de
+                                decisão rápida.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Navegação Card -->
+            <div
+                class="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100 transform transition hover:scale-[1.01]">
+                <div class="p-8 border-b border-gray-100 flex justify-between items-center">
+                    <div>
+                        <h3 class="text-2xl font-bold text-indigo-600">02. Navegação Inteligente</h3>
+                        <p class="text-slate-500 mt-1">Sidebar colapsável para maximizar o espaço de trabalho.</p>
+                    </div>
+                </div>
+                <div class="p-1 text-center bg-gray-100">
+                    <img src="{{ url_for('static', filename='images/mockups/navigation_mockup_comparison_1769825106091.png') }}"
+                        alt="Navigation Comparison" class="mx-auto rounded-lg shadow-inner max-h-[600px]">
+                </div>
+                <div class="p-8 bg-indigo-50 grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="flex gap-4">
+                        <div
+                            class="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 flex-shrink-0">
+                            ✓</div>
+                        <div>
+                            <h4 class="font-bold">Sistema Colapsável</h4>
+                            <p class="text-sm text-slate-600">Modo compacto com tooltips para usuários avançados em
+                                telas menores.</p>
+                        </div>
+                    </div>
+                    <div class="flex gap-4">
+                        <div
+                            class="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 flex-shrink-0">
+                            ✓</div>
+                        <div>
+                            <h4 class="font-bold">Agrupamento Lógico</h4>
+                            <p class="text-sm text-slate-600">Seções colapsáveis separando monitoramento, gestão e
+                                configurações.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- UX Card -->
+            <div
+                class="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100 transform transition hover:scale-[1.01]">
+                <div class="p-8 border-b border-gray-100 flex justify-between items-center">
+                    <div>
+                        <h3 class="text-2xl font-bold text-emerald-600">03. Acessibilidade e UX</h3>
+                        <p class="text-slate-500 mt-1">Refinamento de tabelas e leitura de dados críticos.</p>
+                    </div>
+                </div>
+                <div class="p-1 text-center bg-gray-100">
+                    <img src="{{ url_for('static', filename='images/mockups/ux_table_mockup_comparison_1769825128675.png') }}"
+                        alt="UX Comparison" class="mx-auto rounded-lg shadow-inner max-h-[600px]">
+                </div>
+                <div class="p-8 bg-emerald-50 grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="flex gap-4">
+                        <div
+                            class="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 flex-shrink-0">
+                            ✓</div>
+                        <div>
+                            <h4 class="font-bold">Contraste Aprimorado</h4>
+                            <p class="text-sm text-slate-600">Cores semânticas para status garantindo legibilidade
+                                imediata.</p>
+                        </div>
+                    </div>
+                    <div class="flex gap-4">
+                        <div
+                            class="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 flex-shrink-0">
+                            ✓</div>
+                        <div>
+                            <h4 class="font-bold">Tabelas Responsivas</h4>
+                            <p class="text-sm text-slate-600">Layout fluido que se adapta de tabelas ricas para listas
+                                empilhadas em mobile.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Melhoria 3: Guia de Implementação -->
+    <div class="bg-slate-900 py-20 text-white" id="guia-implementacao">
+        <div class="max-w-7xl mx-auto px-6">
+            <div class="mb-12">
+                <h2 class="text-4xl font-bold mb-4">🛠️ Guia de Implementação Técnica</h2>
+                <p class="text-slate-400 text-lg">Exemplos práticos de código para aplicar estas melhorias na Intranet
+                    ES-SERVIDOR.</p>
+            </div>
+
+            <div class="space-y-16">
+                <!-- Seção 1: Dashboard -->
+                <section>
+                    <div class="flex items-center gap-4 mb-6">
+                        <div
+                            class="w-12 h-12 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-xl">
+                            1</div>
+                        <h3 class="text-2xl font-bold underline decoration-blue-500">Dashboard: Grid de Cards Métricos
+                        </h3>
+                    </div>
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-10">
+                        <div>
+                            <h4 class="text-indigo-400 font-bold mb-2">Objetivo</h4>
+                            <p class="text-slate-300 mb-6">Converter a visualização textual em uma grade de componentes
+                                de alta leitura que facilitam o monitoramento.</p>
+                            <h4 class="text-indigo-400 font-bold mb-2">Passo-a-passo</h4>
+                            <ul class="list-disc list-inside text-slate-400 space-y-2">
+                                <li>Configurar container <code>display: grid</code></li>
+                                <li>Implementar classes de responsividade <code>grid-cols-1 md:grid-cols-3</code></li>
+                                <li>Usar bordas coloridas para status (Border-l-4)</li>
+                            </ul>
+                        </div>
+                        <div class="relative group">
+                            <div class="absolute -top-3 right-4 bg-blue-600 px-3 py-1 rounded text-xs font-bold">REACT /
+                                TAILWIND</div>
+                            <pre><code><span class="code-keyword">export function</span> DashboardGrid() {
+  <span class="code-keyword">return</span> (
+    &lt;<span class="code-keyword">div</span> <span class="code-string">className="grid grid-cols-1 md:grid-cols-3 gap-6"</span>&gt;
+      &lt;MetricCard title=<span class="code-string">"Storage"</span> value=<span class="code-string">"85%"</span> status=<span class="code-string">"warning"</span> /&gt;
+      &lt;MetricCard title=<span class="code-string">"Users"</span> value=<span class="code-string">"1,234"</span> status=<span class="code-string">"success"</span> /&gt;
+      &lt;MetricCard title=<span class="code-string">"Logs"</span> value=<span class="code-string">"12k"</span> status=<span class="code-string">"info"</span> /&gt;
+    &lt;/<span class="code-keyword">div</span>&gt;
+  );
+}</code></pre>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Seção 2: Sidebar -->
+                <section>
+                    <div class="flex items-center gap-4 mb-6">
+                        <div
+                            class="w-12 h-12 bg-indigo-600 rounded-lg flex items-center justify-center font-bold text-xl">
+                            2</div>
+                        <h3 class="text-2xl font-bold underline decoration-indigo-500">Navegação: Sidebar Colapsável
+                        </h3>
+                    </div>
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-10">
+                        <div>
+                            <h4 class="text-indigo-400 font-bold mb-2">Objetivo</h4>
+                            <p class="text-slate-300 mb-6">Implementar um sistema de estados para a sidebar, permitindo
+                                foco no conteúdo principal quando necessário.</p>
+                            <h4 class="text-indigo-400 font-bold mb-2">Passo-a-passo</h4>
+                            <ul class="list-disc list-inside text-slate-400 space-y-2">
+                                <li>Criar estado <code>isCollapsed</code> no core layout</li>
+                                <li>Adicionar transição suave em <code>width</code> (300ms)</li>
+                                <li>Ocultar labels via <code>display: none</code> ou opacidade</li>
+                            </ul>
+                        </div>
+                        <div class="relative group">
+                            <div class="absolute -top-3 right-4 bg-indigo-600 px-3 py-1 rounded text-xs font-bold">
+                                JAVASCRIPT / CSS</div>
+                            <pre><code><span class="code-comment">// Logica de colapso</span>
+<span class="code-keyword">function</span> toggleSidebar() {
+  <span class="code-keyword">const</span> sidebar = document.<span class="code-string">getElementById('app-sidebar')</span>;
+  sidebar.classList.toggle(<span class="code-string">'collapsed'</span>);
+  <span class="code-comment">// Salva preferência no localStorage</span>
+  localStorage.setItem(<span class="code-string">'sidebar'</span>, sidebar.classList.contains(<span class="code-string">'collapsed'</span>));
+}</code></pre>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </div>
+
+    <!-- Melhoria 2: Call to Action (Publicação) -->
+    <div class="bg-indigo-600 py-16 text-white text-center">
+        <div class="max-w-7xl mx-auto px-6">
+            <h2 class="text-4xl font-bold mb-6">Acesse o Link Permanente</h2>
+            <p class="text-xl text-indigo-100 mb-8 max-w-2xl mx-auto">Esta documentação está publicada e disponível 24/7
+                para todos os stakeholders da Intranet ES-SERVIDOR.</p>
+            <div class="flex flex-col md:flex-row justify-center gap-4">
+                <a href="https://intranet-es-servidor.manus.space" target="_blank"
+                    class="bg-white text-indigo-600 px-8 py-3 rounded-full font-bold text-lg hover:bg-slate-100 transition shadow-lg">🔗
+                    Link Permanente</a>
+                <button onclick="navigator.clipboard.writeText('https://intranet-es-servidor.manus.space')"
+                    class="bg-indigo-700 text-white px-8 py-3 rounded-full font-bold text-lg hover:bg-indigo-800 transition">📋
+                    Copiar Link</button>
+            </div>
+            <p class="mt-8 text-indigo-200 text-sm italic">Otimizado para compartilhamento via Slack, Email e LinkedIn
+                com suporte a CDN e SSL.</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // Script para simular interação no guia se necessário
+    console.log("Guia de Implementação Carregado");
+</script>
+{% endblock %}

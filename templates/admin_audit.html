@@ -8,27 +8,27 @@
 {% block content %}
 <!-- Stats Cards -->
 <div class="stats-grid">
-    <div class="stat-card">
+    <a href="{{ url_for('admin.audit_logs', event='UNLINK') }}" class="stat-card stat-error">
         <div class="stat-icon error">🗑️</div>
         <div class="stat-info">
             <div class="stat-value">{{ stats.deletions }}</div>
             <div class="stat-label">Deletados (Recentes)</div>
         </div>
-    </div>
-    <div class="stat-card">
+    </a>
+    <a href="{{ url_for('admin.audit_logs', event='CREATE') }}" class="stat-card stat-success">
         <div class="stat-icon success">📁</div>
         <div class="stat-info">
             <div class="stat-value">{{ stats.creations }}</div>
             <div class="stat-label">Criados (Recentes)</div>
         </div>
-    </div>
-    <div class="stat-card">
+    </a>
+    <a href="{{ url_for('admin.audit_logs', event='WRITE') }}" class="stat-card stat-warning">
         <div class="stat-icon warning">📝</div>
         <div class="stat-info">
             <div class="stat-value">{{ stats.edits }}</div>
             <div class="stat-label">Editados (Recentes)</div>
         </div>
-    </div>
+    </a>
 </div>
 
 <!-- Filters -->

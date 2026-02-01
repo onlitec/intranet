@@ -5,73 +5,258 @@
 {% block content %}
 <div class="content-header">
     <div>
-        <h1 class="content-title">Dispositivos Conhecidos</h1>
-        <p class="content-subtitle">Gerenciar inventário de máquinas, celulares e equipamentos da rede.</p>
+        <h1 class="content-title">Inventário de Dispositivos</h1>
+        <p class="content-subtitle">Gestão de máquinas, celulares e telemetria dos agentes.</p>
     </div>
     <div class="header-actions">
+        <div class="view-toggle mr-4">
+            <button onclick="toggleView('table')" id="btn-table" class="btn btn-sm btn-outline active">📋
+                Tabela</button>
+            <button onclick="toggleView('grid')" id="btn-grid" class="btn btn-sm btn-outline">🔲 Grelha</button>
+        </div>
         <a href="{{ url_for('admin.monitoring_device_new') }}" class="btn btn-primary">
             <span>+ Novo Dispositivo</span>
         </a>
     </div>
 </div>
 
-<div class="card">
+<!-- Grid View (Default for non-technical) -->
+<div id="devices-grid" class="devices-grid" style="display: none;">
+    {% for device in devices %}
+    {% set is_online = device.last_report and (now() - device.last_report).total_seconds() < 600 %} <div
+        class="device-box {% if is_online %}online{% endif %}"
+        onclick="window.location.href='{{ url_for('admin.monitoring_device_edit', id=device.id) }}';">
+        <div class="device-status-pulse"></div>
+        <div class="device-icon-large">{{ device.get_icon() }}</div>
+        <div class="device-info">
+            <h3 class="device-name">{{ device.hostname }}</h3>
+            <div class="device-meta">
+                <span class="meta-item">👤 {{ device.logged_user or '---' }}</span>
+                <span class="meta-item">🌐 {{ device.last_ip or '---' }}</span>
+            </div>
+            <div class="device-badge-row">
+                <span class="badge badge-xs">{{ device.category|upper }}</span>
+                {% if device.agent_version %}
+                <span class="badge badge-primary badge-xs">V{{ device.agent_version }}</span>
+                {% endif %}
+                <a href="{{ url_for('admin.device_analytics', mac=device.mac_address) }}"
+                    class="badge badge-accent badge-xs" onclick="event.stopPropagation();">🧠 Analytics</a>
+            </div>
+        </div>
+</div>
+{% endfor %}
+</div>
+
+<!-- Table View -->
+<div id="devices-table" class="card">
     <div class="card-body p-0">
         <div class="table-responsive">
             <table class="table">
                 <thead>
                     <tr>
                         <th>Dispositivo</th>
+                        <th>Status / IP</th>
                         <th>MAC Address</th>
-                        <th>Categoria</th>
-                        <th>Notas</th>
+                        <th>Usuário Logado</th>
+                        <th>Versão / Reporte</th>
                         <th class="text-right">Ações</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for device in devices %}
-                    <tr>
+                    {% set is_online = device.last_report and (now() - device.last_report).total_seconds() < 600 %} <tr>
                         <td>
                             <div class="flex items-center gap-3">
                                 <div
-                                    class="w-10 h-10 flex items-center justify-center bg-blue-50 text-xl border border-blue-100 rounded-lg">
+                                    class="w-10 h-10 flex items-center justify-center bg-surface text-xl border rounded-lg">
                                     {{ device.get_icon() }}
                                 </div>
-                                <div class="font-bold">{{ device.hostname }}</div>
+                                <div>
+                                    <div class="font-bold">{{ device.hostname }}</div>
+                                    <span class="text-xs badge badge-secondary">{{ device.category }}</span>
+                                </div>
                             </div>
                         </td>
                         <td>
-                            <code
-                                class="text-xs text-primary bg-blue-50 px-2 py-1 rounded">{{ device.mac_address }}</code>
+                            {% if is_online %}
+                            <span class="text-success flex items-center gap-1 font-bold">● Online</span>
+                            {% else %}
+                            <span class="text-muted flex items-center gap-1">○ Offline</span>
+                            {% endif %}
+                            <code class="text-xs block mt-1">{{ device.last_ip or '---' }}</code>
                         </td>
                         <td>
-                            <span class="badge badge-secondary">
-                                {{ device.category|capitalize }}
+                            <code class="text-xs opacity-75">{{ device.mac_address }}</code>
+                        </td>
+                        <td class="text-sm font-medium">
+                            {{ device.logged_user or '---' }}
+                        </td>
+                        <td class="text-xs">
+                            {% if device.agent_version %}
+                            <span
+                                class="badge {% if device.agent_version < config.MIN_AGENT_VERSION %}badge-warning{% else %}badge-primary{% endif %} mb-1">
+                                V{{ device.agent_version }}
                             </span>
+                            {% else %}
+                            <span class="badge badge-error mb-1">Sem Agente</span>
+                            {% endif %}
+                            <div class="text-muted">
+                                {{ device.last_report|localdatetime|strftime('%d/%m %H:%M') if device.last_report else
+                                'Nunca' }}
+                            </div>
                         </td>
-                        <td class="text-muted text-sm">{{ device.notes or '---' }}</td>
                         <td class="text-right">
+                            <a href="{{ url_for('admin.device_analytics', mac=device.mac_address) }}"
+                                class="btn btn-sm btn-outline mr-2" title="Análise IA">🧠 IA</a>
                             <a href="{{ url_for('admin.monitoring_device_edit', id=device.id) }}"
-                                class="btn btn-sm btn-outline-primary mr-2">Editar</a>
-                            <form action="{{ url_for('admin.delete_known_device', id=device.id) }}" method="POST"
-                                onsubmit="return confirm('Tem certeza que deseja remover este dispositivo?');"
-                                style="display:inline;">
-                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                <button type="submit" class="btn btn-sm btn-outline-danger">Remover</button>
-                            </form>
+                                class="btn btn-sm btn-outline-primary mr-2">Detalhes</a>
                         </td>
-                    </tr>
-                    {% else %}
-                    <tr>
-                        <td colspan="5" class="text-center p-12 text-muted">
-                            <div class="text-4xl mb-4">🔌</div>
-                            <p>Nenhum dispositivo cadastrado manualmente ainda.</p>
-                        </td>
-                    </tr>
-                    {% endfor %}
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="6" class="text-center p-12 text-muted">
+                                <div class="text-4xl mb-4">🔌</div>
+                                <p>Nenhum dispositivo encontrado.</p>
+                            </td>
+                        </tr>
+                        {% endfor %}
                 </tbody>
             </table>
         </div>
     </div>
 </div>
+
+<style>
+    .devices-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+        gap: 20px;
+        margin-bottom: 30px;
+    }
+
+    .device-box {
+        background: var(--bg-surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        padding: 24px;
+        position: relative;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+    }
+
+    .device-box:hover {
+        border-color: var(--accent);
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-md);
+    }
+
+    .device-icon-large {
+        font-size: 3rem;
+        margin-bottom: 16px;
+        opacity: 0.8;
+    }
+
+    .device-name {
+        font-size: 1.1rem;
+        font-weight: 700;
+        margin-bottom: 8px;
+        color: var(--text-primary);
+    }
+
+    .device-meta {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        font-size: 0.85rem;
+        color: var(--text-muted);
+        margin-bottom: 12px;
+    }
+
+    .device-status-pulse {
+        position: absolute;
+        top: 15px;
+        right: 15px;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: #64748b;
+    }
+
+    .device-box.online .device-status-pulse {
+        background: #22c55e;
+        box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4);
+        animation: pulse 2s infinite;
+    }
+
+    .device-badge-row {
+        display: flex;
+        gap: 4px;
+        justify-content: center;
+    }
+
+    @keyframes pulse {
+        0% {
+            box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
+        }
+
+        70% {
+            box-shadow: 0 0 0 10px rgba(34, 197, 94, 0);
+        }
+
+        100% {
+            box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
+        }
+    }
+
+    .view-toggle {
+        display: flex;
+        background: var(--bg-surface);
+        border: 1px solid var(--border);
+        padding: 4px;
+        border-radius: var(--radius-md);
+    }
+
+    .view-toggle .btn {
+        border: none;
+        margin: 0;
+    }
+
+    .view-toggle .btn.active {
+        background: var(--accent);
+        color: white;
+    }
+</style>
+
+<script>
+    function toggleView(view) {
+        const table = document.getElementById('devices-table');
+        const grid = document.getElementById('devices-grid');
+        const btnTable = document.getElementById('btn-table');
+        const btnGrid = document.getElementById('btn-grid');
+
+        if (view === 'grid') {
+            table.style.display = 'none';
+            grid.style.display = 'grid';
+            btnGrid.classList.add('active');
+            btnTable.classList.remove('active');
+            localStorage.setItem('deviceView', 'grid');
+        } else {
+            table.style.display = 'block';
+            grid.style.display = 'none';
+            btnTable.classList.add('active');
+            btnGrid.classList.remove('active');
+            localStorage.setItem('deviceView', 'table');
+        }
+    }
+
+    // Persistir escolha do usuário
+    document.addEventListener('DOMContentLoaded', () => {
+        const savedView = localStorage.getItem('deviceView') || 'grid';
+        toggleView(savedView);
+    });
+</script>
 {% endblock %}

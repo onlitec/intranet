@@ -3,16 +3,16 @@ Description=Intranet ES-SERVIDOR Platform
 After=network.target
 
 [Service]
-Type=exec
-User=www-data
-Group=www-data
+Type=simple
+User=alfreire
+Group=alfreire
 WorkingDirectory=/opt/intranet
 EnvironmentFile=-/opt/intranet/.env
 Environment="PATH=/opt/intranet/venv/bin"
-ExecStart=/opt/intranet/run.sh
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/intranet/venv/bin/gunicorn --workers 4 --threads 2 --worker-class gthread --bind 127.0.0.1:5000 --access-logfile /opt/intranet/logs/access.log --error-logfile /opt/intranet/logs/error.log wsgi:app
 Restart=always
 RestartSec=5
-Environment=PYTHONUNBUFFERED=1
 
 [Install]
 WantedBy=multi-user.target

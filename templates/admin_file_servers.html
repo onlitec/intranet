@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="flex justify-between items-center mb-6">
+    <h1 class="text-2xl font-bold">🖥️ Servidores de Arquivos</h1>
+    <a href="{{ url_for('admin.file_server_new') }}" class="btn btn-primary">
+        + Novo Servidor
+    </a>
+</div>
+
+{% if servers %}
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    {% for server in servers %}
+    <div
+        class="card border-{{ 'success' if server.status == 'online' else 'error' if server.status == 'offline' else 'surface-alt' }}">
+        <div class="card-header flex justify-between items-center">
+            <div class="flex items-center gap-2">
+                <span class="text-2xl">{{ server.get_icon() }}</span>
+                <h3 class="card-title">{{ server.name }}</h3>
+            </div>
+            <span
+                class="badge badge-{{ 'success' if server.status == 'online' else 'error' if server.status == 'offline' else 'secondary' }} badge-sm">
+                {{ server.status|upper }}
+            </span>
+        </div>
+        <div class="card-body">
+            <div class="space-y-2 text-sm">
+                <div><strong>Tipo:</strong> {{ server.server_type|title }}</div>
+                <div><strong>Protocolo:</strong> {{ server.protocol|upper }}</div>
+                <div><strong>Host:</strong> {{ server.host }}:{{ server.get_protocol_port() }}</div>
+                {% if server.username %}
+                <div><strong>Usuário:</strong> {{ server.username }}</div>
+                {% endif %}
+                {% if server.last_check %}
+                <div class="text-xs text-muted">
+                    Último teste: {{ server.last_check.strftime('%d/%m %H:%M') }}
+                </div>
+                {% endif %}
+                {% if server.status_message %}
+                <div class="text-xs {{ 'text-success' if server.status == 'online' else 'text-error' }}">
+                    {{ server.status_message }}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        <div class="card-footer flex justify-between">
+            <button onclick="testServer({{ server.id }})" class="btn btn-sm btn-outline" id="test-btn-{{ server.id }}">
+                🔄 Testar
+            </button>
+            <div class="flex gap-2">
+                <a href="{{ url_for('admin.file_server_edit', id=server.id) }}" class="btn btn-xs btn-outline">
+                    ✏️
+                </a>
+                <form method="POST" action="{{ url_for('admin.file_server_delete', id=server.id) }}" class="inline"
+                    onsubmit="return confirm('Excluir servidor {{ server.name }}?')">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-xs btn-error">🗑️</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="card border-accent">
+    <div class="card-body text-center py-12">
+        <div class="text-6xl mb-4">📁</div>
+        <h3 class="text-xl font-bold mb-2">Nenhum servidor configurado</h3>
+        <p class="text-muted mb-4">Configure seu primeiro servidor de arquivos NAS</p>
+        <a href="{{ url_for('admin.file_server_new') }}" class="btn btn-primary">
+            + Adicionar Servidor
+        </a>
+    </div>
+</div>
+{% endif %}
+
+<script>
+    function testServer(id) {
+        const btn = document.getElementById(`test-btn-${id}`);
+        btn.disabled = true;
+        btn.innerHTML = '⏳ Testando...';
+
+        fetch(`/admin/file-servers/${id}/test`, { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+                btn.innerHTML = data.success ? '✅ ' + data.message : '❌ ' + data.message;
+                setTimeout(() => {
+                    btn.innerHTML = '🔄 Testar';
+                    btn.disabled = false;
+                    location.reload();
+                }, 2000);
+            })
+            .catch(e => {
+                btn.innerHTML = '❌ Erro';
+                btn.disabled = false;
+            });
+    }
+</script>
+
+{% endblock %}

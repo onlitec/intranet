@@ -24,6 +24,7 @@ from database import init_crypto
 from esservidor_api import ESSERVIDORAPI
 from models import init_db
 from routes import register_routes
+from agent_api import agent_api
 
 
 csrf = CSRFProtect()
@@ -81,6 +82,9 @@ def create_app() -> Flask:
     # Blueprint admin (prefix /admin)
     app.register_blueprint(admin_bp)
 
+    # Blueprint agent (API do Agente)
+    app.register_blueprint(agent_api)
+
     # Rotas principais (endpoints legados sem prefixo)
     register_routes(app)
 
@@ -137,6 +141,24 @@ def create_app() -> Flask:
     def internal_error(error):
         app.logger.exception(f"Erro interno: {error}")
         return render_template('error.html', error_code=500, error_message='Erro interno do servidor'), 500
+
+    @app.context_processor
+    def inject_timezone():
+        from datetime import datetime
+        return dict(timezone_offset=config.TIMEZONE_OFFSET, now=datetime.utcnow)
+
+    @app.template_filter('localdatetime')
+    def localdatetime_filter(dt):
+        if dt is None:
+            return None
+        from datetime import timedelta
+        return dt + timedelta(hours=config.TIMEZONE_OFFSET)
+
+    @app.template_filter('strftime')
+    def strftime_filter(dt, format='%d/%m/%Y %H:%M:%S'):
+        if dt is None:
+            return ""
+        return dt.strftime(format)
 
     return app
 

@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+
+{% block title %}Análise de Dispositivo - {{ super() }}{% endblock %}
+
+{% block content %}
+<div class="content-header">
+    <div>
+        <nav class="flex text-xs text-muted mb-2 gap-2" aria-label="Breadcrumb">
+            <a href="{{ url_for('admin.monitoring_dashboard') }}" class="hover:text-accent">Monitoramento</a>
+            <span>/</span>
+            <a href="{{ url_for('admin.monitoring_devices') }}" class="hover:text-accent">Inventário</a>
+        </nav>
+        <h1 class="content-title">
+            {% if device %}
+            {{ device.hostname }} <span class="text-muted text-sm font-normal">({{ mac }})</span>
+            {% else %}
+            Identidade Desconhecida <span class="text-muted text-sm font-normal">({{ mac }})</span>
+            {% endif %}
+        </h1>
+        <p class="content-subtitle">Análise comportamental e histórico de tráfego granular.</p>
+    </div>
+    <div class="header-actions">
+        <div class="btn-group">
+            <a href="?days=1" class="btn btn-sm {% if days == 1 %}btn-accent{% else %}btn-outline{% endif %}">24h</a>
+            <a href="?days=7" class="btn btn-sm {% if days == 7 %}btn-accent{% else %}btn-outline{% endif %}">7d</a>
+            <a href="?days=30" class="btn btn-sm {% if days == 30 %}btn-accent{% else %}btn-outline{% endif %}">30d</a>
+        </div>
+        {% if not device %}
+        <button onclick="openQuickRegister('{{ mac }}')" class="btn btn-primary ml-4">+ Cadastrar</button>
+        {% endif %}
+    </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+    <!-- AI Analysis Card -->
+    <div class="lg:col-span-2">
+        <div class="card border-accent h-full">
+            <div class="card-header bg-surface-alt flex justify-between items-center">
+                <h3 class="card-title">🧠 Perfil Comportamental (IA)</h3>
+                <span class="badge badge-primary">Processado em tempo real</span>
+            </div>
+            <div class="card-body">
+                <div
+                    class="bg-black p-4 rounded border border-surface-alt font-mono text-green-500 text-sm h-64 overflow-y-auto leading-relaxed">
+                    {{ ai_analysis|nl2br }}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Stats -->
+    <div class="flex flex-col gap-6">
+        <div class="card text-center py-8">
+            <div class="text-muted text-xs uppercase tracking-widest mb-2">Total de Acessos ({{ days }}d)</div>
+            <div class="text-4xl font-extrabold text-accent">
+                {{ logs|sum(attribute='count') }}
+            </div>
+        </div>
+
+        <div class="card text-center py-8">
+            <div class="text-muted text-xs uppercase tracking-widest mb-2">Domínios Únicos</div>
+            <div class="text-4xl font-extrabold text-white">
+                {{ logs|length }}
+            </div>
+        </div>
+
+        {% if device %}
+        <div class="card p-4 flex items-center gap-4 bg-surface-alt border-accent">
+            <div class="text-3xl">{{ device.get_icon() }}</div>
+            <div>
+                <div class="text-xs text-muted uppercase">Categoria</div>
+                <div class="font-bold">{{ device.category|upper }}</div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Detailed Logs Table -->
+<div class="card">
+    <div class="card-header border-b border-surface-alt">
+        <h3 class="card-title">🌐 Destinos mais Acessados</h3>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th class="pl-6">Domínio/Hostname</th>
+                        <th class="text-center" style="width: 150px;">Acessos</th>
+                        <th class="text-right pr-6" style="width: 200px;">Share de Tráfego</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% set total_hits = logs|sum(attribute='count') %}
+                    {% for log in logs %}
+                    <tr>
+                        <td class="pl-6">
+                            <code class="text-accent">{{ log.hostname }}</code>
+                        </td>
+                        <td class="text-center font-bold">{{ log.count }}</td>
+                        <td class="pr-6">
+                            {% set pct = (log.count / total_hits * 100)|round(1) if total_hits > 0 else 0 %}
+                            <div class="flex items-center gap-3">
+                                <div class="flex-grow bg-surface-alt h-1.5 rounded-full overflow-hidden">
+                                    <div class="bg-accent h-full" style="width: {{ pct }}%"></div>
+                                </div>
+                                <span class="text-xs font-mono w-10 text-right">{{ pct }}%</span>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="3" class="text-center py-12 text-muted">
+                            Nenhum registro encontrado para este período.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Cadastro Rápido (Se necessário) -->
+<div id="quick-register-modal" class="modal">
+    <div class="modal-content card">
+        <div class="card-header">
+            <h3 class="card-title">🚀 Cadastro Rápido</h3>
+            <button onclick="closeModal()" class="close-btn">&times;</button>
+        </div>
+        <div class="card-body">
+            <form id="quick-reg-form">
+                <input type="hidden" id="reg-mac" name="mac_address">
+                <div class="form-group mb-4">
+                    <label class="form-label">Nome do Dispositivo</label>
+                    <input type="text" id="reg-hostname" class="form-control" placeholder="Ex: PC-SALA-01">
+                </div>
+                <div class="form-group mb-4">
+                    <label class="form-label">Categoria</label>
+                    <select id="reg-category" class="form-control">
+                        <option value="pc">💻 Computador</option>
+                        <option value="smartphone">📱 Smartphone</option>
+                        <option value="server">🖥️ Servidor</option>
+                        <option value="other">🔌 Outro</option>
+                    </select>
+                </div>
+                <button type="button" onclick="submitQuickRegister()" class="btn btn-accent w-full mt-4">Salvar
+                    Identidade</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+    .modal {
+        display: none;
+        position: fixed;
+        z-index: 1000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.8);
+        backdrop-filter: blur(4px);
+    }
+
+    .modal-content {
+        margin: 10% auto;
+        width: 400px;
+    }
+
+    .close-btn {
+        background: none;
+        border: none;
+        font-size: 24px;
+        color: var(--text-muted);
+        cursor: pointer;
+    }
+
+    .border-accent {
+        border: 1px solid var(--accent) !important;
+    }
+</style>
+
+<script>
+    function openQuickRegister(mac) {
+        document.getElementById('reg-mac').value = mac;
+        document.getElementById('quick-register-modal').style.display = 'block';
+    }
+
+    function closeModal() {
+        document.getElementById('quick-register-modal').style.display = 'none';
+    }
+
+    function submitQuickRegister() {
+        const mac = document.getElementById('reg-mac').value;
+        const hostname = document.getElementById('reg-hostname').value;
+        const category = document.getElementById('reg-category').value;
+
+        if (!hostname) return alert('Nome é obrigatório');
+
+        const formData = new FormData();
+        formData.append('mac_address', mac);
+        formData.append('hostname', hostname);
+        formData.append('category', category);
+
+        fetch("{{ url_for('admin.device_quick_register') }}", {
+            method: 'POST',
+            headers: { 'X-CSRFToken': "{{ csrf_token() }}" },
+            body: formData
+        })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert(data.message);
+                }
+            });
+    }
+</script>
+{% endblock %}

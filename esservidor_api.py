@@ -750,10 +750,13 @@ class ESSERVIDORAPI:
             })
         return True, groups
 
-    def get_smb_shares_detailed(self) -> Tuple[bool, any]:
+    def get_smb_shares_detailed(self, include_acls: bool = True) -> Tuple[bool, any]:
         """
-        Obtém lista detalhada de compartilhamentos SMB incluindo ACLs
+        Obtém lista detalhada de compartilhamentos SMB
         
+        Args:
+            include_acls: Se True, faz chamadas extras para obter permissões de cada pasta (LENTO)
+            
         Returns:
             Tupla (sucesso, lista_shares ou erro)
         """
@@ -774,8 +777,8 @@ class ESSERVIDORAPI:
                 'acl_error': None
             }
             
-            # Tenta obter ACL do share
-            if share.get('path'):
+            # Tenta obter ACL do share apenas se solicitado
+            if include_acls and share.get('path'):
                 acl_success, acl_data = self.get_filesystem_acl(share['path'])
                 if acl_success:
                     # Processa ACL para formato amigável

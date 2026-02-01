@@ -22,6 +22,7 @@ FLASK_ENV = os.getenv('FLASK_ENV', 'development')
 FLASK_DEBUG = FLASK_ENV == 'development'
 FLASK_HOST = os.getenv('FLASK_HOST', '0.0.0.0')
 FLASK_PORT = int(os.getenv('FLASK_PORT', '5000'))
+TIMEZONE_OFFSET = int(os.getenv('TIMEZONE_OFFSET', '-3'))  # Horário de Brasília por padrão
 
 # Configurações de Sessão
 SESSION_TIMEOUT = 28800  # 8 horas em segundos
@@ -64,3 +65,14 @@ if FLASK_ENV == 'production':
 
     if not os.getenv('SYSTEM_SALT'):
         raise ValueError("SYSTEM_SALT não configurado em produção. Defina no .env para criptografia de credenciais.")
+
+# Configurações do Agente Windows
+AGENT_TOKEN = os.getenv('AGENT_TOKEN', 'ONLITEC-HUD-2026')
+AGENT_REPORT_INTERVAL = int(os.getenv('AGENT_REPORT_INTERVAL', '300')) # 5 minutos
+AGENT_MAX_FAILED_ATTEMPTS = 5
+AGENT_BLOCK_TIME = 3600 # 1 hora em segundos
+MIN_AGENT_VERSION = "0.1.0" # Versão Alpha inicial
+# Configurações de IA (Fase 7)
+AI_ENABLE = os.getenv('AI_ENABLE', 'true').lower() == 'true'
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', '') # Chave opcional
+AI_MODEL_NAME = os.getenv('AI_MODEL_NAME', 'gemini-1.5-flash')

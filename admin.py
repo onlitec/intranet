@@ -5,7 +5,7 @@ Rotas para gerenciamento de usuários e visualização de logs
 from functools import wraps
 from datetime import datetime, timedelta, timezone
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, jsonify, current_app
-from models import db, AdminUser, ESSERVIDORUser, AccessLog, SMTPConfig, ReportSchedule, ReportLog
+from models import db, AdminUser, ESSERVIDORUser, AccessLog, SMTPConfig, ReportSchedule, ReportLog, KnownDevice
 from database import encrypt_api_key, decrypt_api_key
 from esservidor_api import ESSERVIDORAPI
 from collections import Counter
@@ -13,6 +13,8 @@ import config
 from werkzeug.utils import secure_filename
 import os
 import secrets
+import subprocess
+from ai_engine import ai_engine
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
@@ -160,6 +162,9 @@ def logout():
 @admin_required
 def dashboard():
     """Dashboard administrativo"""
+    # Importações necessárias (movidas para o topo para evitar UnboundLocalError)
+    from models import InternetAccessLog, ESSERVIDORUser, FileServer
+    
     admin = get_current_admin()
     
     # Estatísticas
@@ -176,6 +181,11 @@ def dashboard():
             AccessLog.action == 'login',
             AccessLog.success == True,
             AccessLog.timestamp >= datetime.utcnow() - timedelta(days=7)
+        ).count(),
+        'managed_devices': KnownDevice.query.filter_by(is_active=True).count(),
+        'online_agents': KnownDevice.query.filter(
+            KnownDevice.is_active == True,
+            KnownDevice.last_report >= datetime.utcnow() - timedelta(minutes=10)
         ).count()
     }
     
@@ -189,80 +199,134 @@ def dashboard():
     if 'data' in cache and now_ts - cache['timestamp'] < 60:
         server_stats = cache['data']['server_stats']
         esservidor_online = cache['data']['esservidor_online']
-        chart_data = cache['data']['chart_data']
+        server_chart_data = cache['data']['chart_data']
     else:
-        # Verificar conexão e obter stats do ES-SERVIDOR
+        # Verificar se há algum servidor ES-SERVIDOR configurado e ativo
+        from models import FileServer
+        has_esservidor = FileServer.query.filter_by(
+            server_type='es-servidor', 
+            is_active=True
+        ).first() is not None
+        
+        # Verificar conexão APENAS se houver servidor configurado
         esservidor_online = False
         server_stats = {'total_users': 0, 'smb_users': 0, 'shares': 0}
-        chart_data = {'labels': [], 'action_counts': [], 'folders': [], 'counts': []}
+        server_chart_data = {'labels': [], 'action_counts': [], 'folders': [], 'counts': []}
         
-        try:
-            # Usa um timeout menor (3s) para o dashboard não travar
-            esservidor = ESSERVIDORAPI(config.ESSERVIDOR_API_URL, config.ESSERVIDOR_API_KEY, 3)
-            esservidor_online = esservidor.check_connection()
+        
+        if has_esservidor:
+            try:
+                # Usa um timeout menor (3s) para o dashboard não travar
+                esservidor = ESSERVIDORAPI(config.ESSERVIDOR_API_URL, config.ESSERVIDOR_API_KEY, 3)
+                esservidor_online = esservidor.check_connection()
             
-            if esservidor_online:
-                success, users = esservidor.get_all_users()
-                if success:
-                    non_builtin = [u for u in users if not u.get('builtin', False)]
-                    server_stats['total_users'] = len(non_builtin)
-                    server_stats['smb_users'] = len([u for u in non_builtin if u.get('smb', False)])
-                
-                success, shares = esservidor.get_smb_shares()
-                if success:
-                    server_stats['shares'] = len(shares)
-
-                # Auditoria
-                _, audit_data = esservidor.get_audit_logs(limit=300) # Limite menor para rapidez
-                chart_data = {
-                    'labels': ['Acessos', 'Edições', 'Criações', 'Deletados', 'Negados'],
-                    'action_counts': [0, 0, 0, 0, 0],
-                    'folders': [],
-                    'counts': []
-                }
-                
-                if isinstance(audit_data, list):
-                    path_counter = Counter()
-                    for log in audit_data:
-                        action = log.get('action', '')
-                        if 'Acessou' in action: chart_data['action_counts'][0] += 1
-                        elif 'Editou' in action: chart_data['action_counts'][1] += 1
-                        elif 'Criou' in action: chart_data['action_counts'][2] += 1
-                        elif 'Deletou' in action: chart_data['action_counts'][3] += 1
-                        elif 'Negado' in action: chart_data['action_counts'][4] += 1
-                        
-                        p = log.get('path', 'N/A')
-                        if p != 'N/A':
-                            # Extrai a primeira pasta após a raiz (se houver)
-                            # Ex: /share/folder1/file.txt -> share
-                            # Ex: share/folder1/file.txt -> share
-                            parts = [part for part in p.split('/') if part]
-                            if parts:
-                                folder = parts[0]
-                                path_counter[folder] += 1
+                if esservidor_online:
+                    success, users = esservidor.get_all_users()
+                    if success:
+                        non_builtin = [u for u in users if not u.get('builtin', False)]
+                        server_stats['total_users'] = len(non_builtin)
+                        server_stats['smb_users'] = len([u for u in non_builtin if u.get('smb', False)])
                     
-                    top_paths = path_counter.most_common(5)
-                    chart_data['folders'] = [p[0] for p in top_paths]
-                    chart_data['counts'] = [p[1] for p in top_paths]
-            
-            # Salva no cache do app
-            current_app._esservidor_cache = {
-                'timestamp': now_ts,
-                'data': {
-                    'server_stats': server_stats,
-                    'esservidor_online': esservidor_online,
-                    'chart_data': chart_data
+                    success, shares = esservidor.get_smb_shares()
+                    if success:
+                        server_stats['shares'] = len(shares)
+     
+                    # Auditoria
+                    _, audit_data = esservidor.get_audit_logs(limit=300) # Limite menor para rapidez
+                    server_chart_data = {
+                        'labels': ['Acessos', 'Edições', 'Criações', 'Deletados', 'Negados'],
+                        'action_counts': [0, 0, 0, 0, 0],
+                        'folders': [],
+                        'counts': []
+                    }
+                    
+                    if isinstance(audit_data, list):
+                        path_counter = Counter()
+                        for log in audit_data:
+                            action = log.get('action', '')
+                            if 'Acessou' in action: server_chart_data['action_counts'][0] += 1
+                            elif 'Editou' in action: server_chart_data['action_counts'][1] += 1
+                            elif 'Criou' in action: server_chart_data['action_counts'][2] += 1
+                            elif 'Deletou' in action: server_chart_data['action_counts'][3] += 1
+                            elif 'Negado' in action: server_chart_data['action_counts'][4] += 1
+                            
+                            p = log.get('path', 'N/A')
+                            if p != 'N/A':
+                                # Extrai a primeira pasta após a raiz (se houver)
+                                # Ex: /share/folder1/file.txt -> share
+                                # Ex: share/folder1/file.txt -> share
+                                parts = [part for part in p.split('/') if part]
+                                if parts:
+                                    folder = parts[0]
+                                    path_counter[folder] += 1
+                        
+                        top_paths = path_counter.most_common(5)
+                        server_chart_data['folders'] = [p[0] for p in top_paths]
+                        server_chart_data['counts'] = [p[1] for p in top_paths]
+                
+                # Salva no cache do app
+                current_app._esservidor_cache = {
+                    'timestamp': now_ts,
+                    'data': {
+                        'server_stats': server_stats,
+                        'esservidor_online': esservidor_online,
+                        'chart_data': server_chart_data
+                    }
                 }
-            }
-        except Exception as e:
-            current_app.logger.error(f"Erro no dashboard ES-SERVIDOR: {e}")
+            except Exception as e:
+                current_app.logger.error(f"Erro no dashboard ES-SERVIDOR: {e}")
+
+    # --- MONITORAMENTO DE TRÁFEGO (Novo) ---
+    from models import InternetAccessLog, ESSERVIDORUser, FileServer
+    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0)
+    
+    # Valores padrão em caso de erro
+    traffic_stats = {
+        'total_requests': 0,
+        'blocked_requests': 0,
+        'top_user': 'N/A'
+    }
+    nas_servers = []
+    
+    try:
+        traffic_stats['total_requests'] = InternetAccessLog.query.filter(InternetAccessLog.timestamp >= today_start).count()
+        traffic_stats['blocked_requests'] = InternetAccessLog.query.filter(
+            InternetAccessLog.timestamp >= today_start,
+            InternetAccessLog.action == 'block'
+        ).count()
+        
+        # Top usuário de hoje (simplificado para performance)
+        top_user_query = db.session.query(
+            InternetAccessLog.user_id, 
+            db.func.count(InternetAccessLog.id).label('count')
+        ).filter(
+            InternetAccessLog.timestamp >= today_start
+        ).group_by(InternetAccessLog.user_id).order_by(db.desc('count')).first()
+        
+        if top_user_query:
+            user = ESSERVIDORUser.query.get(top_user_query[0])
+            traffic_stats['top_user'] = user.username if user else 'Desconhecido'
+
+        # --- SERVIDORES NAS (Novo) ---
+        nas_servers = FileServer.query.filter_by(is_active=True).all()
+        
+        # Flag para exibir seção legado apenas se houver um ES-SERVIDOR configurado
+        has_active_esservidor = any(s.server_type == 'es-servidor' for s in nas_servers)
+        
+    except Exception as e:
+        current_app.logger.error(f"Erro ao carregar dados de monitoramento: {e}")
+        has_active_esservidor = False
+        # Mantém os valores padrão definidos acima
 
     return render_template('admin_dashboard.html', 
                          admin=admin, 
                          stats=stats,
+                         traffic_stats=traffic_stats,
+                         nas_servers=nas_servers,
+                         has_active_esservidor=has_active_esservidor,
                          server_stats=server_stats,
                           recent_logs=recent_logs,
-                          chart_data=chart_data,
+                          server_chart_data=server_chart_data,
                           esservidor_online=esservidor_online,
                           esservidor_ip=config.ESSERVIDOR_IP)
 
@@ -521,24 +585,23 @@ def audit_logs():
         flash(f'Erro ao carregar logs do ES-SERVIDOR: {audit_data}', 'error')
         audit_data = []
 
-    # Estatísticas simples para os cards (últimas 24h)
-    stats = {
-        'deletions': 0,
-        'creations': 0,
-        'edits': 0
-    }
+    # --- CACHE DE ESTATÍSTICAS DE AUDITORIA (2 min) ---
+    now_ts = datetime.utcnow().timestamp()
+    cache = getattr(current_app, '_audit_stats_cache', {})
     
-    # Busca um conjunto maior para estatísticas rápidas
-    _, recent_data = esservidor.get_audit_logs(limit=500)
-    if isinstance(recent_data, list):
-        for log in recent_data:
-            action = log.get('action', '')
-            if 'Deletou' in action:
-                stats['deletions'] += 1
-            elif 'Criou' in action:
-                stats['creations'] += 1
-            elif 'Editou' in action:
-                stats['edits'] += 1
+    if 'stats' in cache and now_ts - cache['timestamp'] < 120:
+        stats = cache['stats']
+    else:
+        stats = {'deletions': 0, 'creations': 0, 'edits': 0}
+        _, recent_data = esservidor.get_audit_logs(limit=500)
+        if isinstance(recent_data, list):
+            for log in recent_data:
+                action = log.get('action', '')
+                if 'Deletou' in action: stats['deletions'] += 1
+                elif 'Criou' in action: stats['creations'] += 1
+                elif 'Editou' in action: stats['edits'] += 1
+        
+        current_app._audit_stats_cache = {'timestamp': now_ts, 'stats': stats}
 
     return render_template('admin_audit.html', 
                          admin=admin, 
@@ -598,36 +661,55 @@ def api_audit_data():
 @admin_bp.route('/storage')
 @admin_required
 def storage():
-    """Visualização de pools de armazenamento e datasets"""
+    """Visualização de pools de armazenamento e datasets com cache"""
     admin = get_current_admin()
     
-    esservidor = ESSERVIDORAPI(config.ESSERVIDOR_API_URL, config.ESSERVIDOR_API_KEY, config.API_TIMEOUT)
+    # --- CACHE DE STORAGE (60s) ---
+    now_ts = datetime.utcnow().timestamp()
+    cache = getattr(current_app, '_storage_cache', {})
     
-    # Obter pools
-    pools_success, pools = esservidor.get_pools()
-    if not pools_success:
-        flash(f'Erro ao carregar pools: {pools}', 'error')
-        pools = []
-    
-    # Obter datasets
-    datasets_success, datasets = esservidor.get_datasets()
-    if not datasets_success:
-        flash(f'Erro ao carregar datasets: {datasets}', 'error')
-        datasets = []
-    
-    # Calcular estatísticas gerais
-    total_size = sum(p.get('size', 0) for p in pools)
-    total_allocated = sum(p.get('allocated', 0) for p in pools)
-    total_free = sum(p.get('free', 0) for p in pools)
-    
-    stats = {
-        'total_pools': len(pools),
-        'total_datasets': len(datasets),
-        'total_size': total_size,
-        'total_allocated': total_allocated,
-        'total_free': total_free,
-        'usage_percent': round((total_allocated / total_size * 100), 1) if total_size > 0 else 0
-    }
+    if 'data' in cache and now_ts - cache['timestamp'] < 60:
+        pools = cache['data']['pools']
+        datasets = cache['data']['datasets']
+        stats = cache['data']['stats']
+    else:
+        esservidor = ESSERVIDORAPI(config.ESSERVIDOR_API_URL, config.ESSERVIDOR_API_KEY, config.API_TIMEOUT)
+        
+        # Obter pools
+        pools_success, pools = esservidor.get_pools()
+        if not pools_success:
+            flash(f'Erro ao carregar pools: {pools}', 'error')
+            pools = []
+        
+        # Obter datasets
+        datasets_success, datasets = esservidor.get_datasets()
+        if not datasets_success:
+            flash(f'Erro ao carregar datasets: {datasets}', 'error')
+            datasets = []
+        
+        # Calcular estatísticas gerais
+        total_size = sum(p.get('size', 0) for p in pools)
+        total_allocated = sum(p.get('allocated', 0) for p in pools)
+        total_free = sum(p.get('free', 0) for p in pools)
+        
+        stats = {
+            'total_pools': len(pools),
+            'total_datasets': len(datasets),
+            'total_size': total_size,
+            'total_allocated': total_allocated,
+            'total_free': total_free,
+            'usage_percent': round((total_allocated / total_size * 100), 1) if total_size > 0 else 0
+        }
+        
+        # Salva no cache
+        current_app._storage_cache = {
+            'timestamp': now_ts,
+            'data': {
+                'pools': pools,
+                'datasets': datasets,
+                'stats': stats
+            }
+        }
     
     return render_template('admin_storage.html',
                          admin=admin,
@@ -641,29 +723,51 @@ def storage():
 @admin_bp.route('/shares')
 @admin_required
 def shares():
-    """Visualização de compartilhamentos SMB e permissões"""
+    """Visualização de compartilhamentos SMB e permissões com cache"""
     admin = get_current_admin()
     
-    esservidor = ESSERVIDORAPI(config.ESSERVIDOR_API_URL, config.ESSERVIDOR_API_KEY, config.API_TIMEOUT)
+    # --- CACHE DE SHARES (60s) ---
+    now_ts = datetime.utcnow().timestamp()
+    cache = getattr(current_app, '_shares_cache', {})
     
-    # Obter shares detalhados (com ACL)
-    shares_success, shares_data = esservidor.get_smb_shares_detailed()
-    if not shares_success:
-        flash(f'Erro ao carregar compartilhamentos: {shares_data}', 'error')
-        shares_data = []
+    # Se quiser ver com ACLs completas, pode passar via flag (ex.: para forçar refresh)
+    force_acls = request.args.get('acls', 'false').lower() == 'true'
     
-    # Obter status do SMB
-    smb_success, smb_status = esservidor.get_smb_status()
-    if not smb_success:
-        smb_status = {'enable': False, 'workgroup': 'N/A', 'netbiosname': 'N/A'}
-    
-    stats = {
-        'total_shares': len(shares_data),
-        'active_shares': len([s for s in shares_data if s.get('enabled', False)]),
-        'smb_enabled': smb_status.get('enable', False),
-        'workgroup': smb_status.get('workgroup', 'N/A'),
-        'netbiosname': smb_status.get('netbiosname', 'N/A')
-    }
+    if not force_acls and 'data' in cache and now_ts - cache['timestamp'] < 60:
+        shares_data = cache['data']['shares']
+        smb_status = cache['data']['smb_status']
+        stats = cache['data']['stats']
+    else:
+        esservidor = ESSERVIDORAPI(config.ESSERVIDOR_API_URL, config.ESSERVIDOR_API_KEY, config.API_TIMEOUT)
+        
+        # Obter shares (sem ACL por padrão para ser rápido)
+        shares_success, shares_data = esservidor.get_smb_shares_detailed(include_acls=force_acls)
+        if not shares_success:
+            flash(f'Erro ao carregar compartilhamentos: {shares_data}', 'error')
+            shares_data = []
+        
+        # Obter status do SMB
+        smb_success, smb_status = esservidor.get_smb_status()
+        if not smb_success:
+            smb_status = {'enable': False, 'workgroup': 'N/A', 'netbiosname': 'N/A'}
+        
+        stats = {
+            'total_shares': len(shares_data),
+            'active_shares': len([s for s in shares_data if s.get('enabled', False)]),
+            'smb_enabled': smb_status.get('enable', False),
+            'workgroup': smb_status.get('workgroup', 'N/A'),
+            'netbiosname': smb_status.get('netbiosname', 'N/A')
+        }
+        
+        # Salva no cache
+        current_app._shares_cache = {
+            'timestamp': now_ts,
+            'data': {
+                'shares': shares_data,
+                'smb_status': smb_status,
+                'stats': stats
+            }
+        }
     
     return render_template('admin_shares.html',
                          admin=admin,
@@ -677,60 +781,79 @@ def shares():
 @admin_bp.route('/server-users')
 @admin_required
 def server_users():
-    """Visualização de usuários e grupos do ES-SERVIDOR"""
+    """Visualização de usuários e grupos do ES-SERVIDOR com cache"""
     admin = get_current_admin()
     
-    esservidor = ESSERVIDORAPI(config.ESSERVIDOR_API_URL, config.ESSERVIDOR_API_KEY, config.API_TIMEOUT)
+    # --- CACHE DE SERVER USERS (60s) ---
+    now_ts = datetime.utcnow().timestamp()
+    cache = getattr(current_app, '_server_users_cache', {})
     
-    # Obter usuários
-    users_success, users = esservidor.get_all_users()
-    if not users_success:
-        flash(f'Erro ao carregar usuários: {users}', 'error')
-        users = []
-    
-    # Obter grupos
-    groups_success, groups = esservidor.get_all_groups()
-    if not groups_success:
-        flash(f'Erro ao carregar grupos: {groups}', 'error')
-        groups = []
+    if 'data' in cache and now_ts - cache['timestamp'] < 60:
+        users = cache['data']['users']
+        groups = cache['data']['groups']
+        stats = cache['data']['stats']
+    else:
+        esservidor = ESSERVIDORAPI(config.ESSERVIDOR_API_URL, config.ESSERVIDOR_API_KEY, config.API_TIMEOUT)
         
-    # Criar um mapeamento de GID -> Nome do Grupo
-    group_map = {g.get('id'): g.get('name') for g in groups}
-    
-    # Processar usuários para garantir que grupos mostrem nomes em vez de IDs
-    for user in users:
-        formatted_groups = []
-        # user.get('groups') pode vir com nomes se o API conseguiu processar, 
-        # ou IDs se vieram puros. Vamos garantir que usemos nomes.
-        current_groups = user.get('group_ids', [])
-        for gid in current_groups:
-            name = group_map.get(gid)
-            if name:
-                formatted_groups.append(name)
-            else:
-                formatted_groups.append(str(gid))
+        # Obter usuários
+        users_success, users = esservidor.get_all_users()
+        if not users_success:
+            flash(f'Erro ao carregar usuários: {users}', 'error')
+            users = []
         
-        if formatted_groups:
-            user['groups'] = formatted_groups
+        # Obter grupos
+        groups_success, groups = esservidor.get_all_groups()
+        if not groups_success:
+            flash(f'Erro ao carregar grupos: {groups}', 'error')
+            groups = []
+            
+        # Criar um mapeamento de GID -> Nome do Grupo
+        group_map = {g.get('id'): g.get('name') for g in groups}
+        
+        # Processar usuários para garantir que grupos mostrem nomes em vez de IDs
+        for user in users:
+            formatted_groups = []
+            current_groups = user.get('group_ids', [])
+            for gid in current_groups:
+                name = group_map.get(gid)
+                if name:
+                    formatted_groups.append(name)
+                else:
+                    formatted_groups.append(str(gid))
+            
+            if formatted_groups:
+                user['groups'] = formatted_groups
+        
+        stats = {
+            'total_users': len(users),
+            'smb_users': len([u for u in users if u.get('smb', False)]),
+            'locked_users': len([u for u in users if u.get('locked', False)]),
+            'total_groups': len(groups),
+            'smb_groups': len([g for g in groups if g.get('smb', False)])
+        }
+        
+        # Salva no cache
+        current_app._server_users_cache = {
+            'timestamp': now_ts,
+            'data': {
+                'users': users,
+                'groups': groups,
+                'stats': stats
+            }
+        }
     
-    # Filtrar usuários builtin (sistema) se desejado
+    # Filtragem de builtin não é cacheada para permitir troca dinâmica rápido (os dados base já estão em RAM)
     show_builtin = request.args.get('show_builtin', 'false').lower() == 'true'
+    filtered_users = users
+    filtered_groups = groups
     if not show_builtin:
-        users = [u for u in users if not u.get('builtin', False)]
-        groups = [g for g in groups if not g.get('builtin', False)]
-    
-    stats = {
-        'total_users': len(users),
-        'smb_users': len([u for u in users if u.get('smb', False)]),
-        'locked_users': len([u for u in users if u.get('locked', False)]),
-        'total_groups': len(groups),
-        'smb_groups': len([g for g in groups if g.get('smb', False)])
-    }
+        filtered_users = [u for u in users if not u.get('builtin', False)]
+        filtered_groups = [g for g in groups if not g.get('builtin', False)]
     
     return render_template('admin_server_users.html',
                          admin=admin,
-                         users=users,
-                         groups=groups,
+                         users=filtered_users,
+                         groups=filtered_groups,
                          stats=stats,
                          show_builtin=show_builtin)
 
@@ -1246,90 +1369,145 @@ def platform_settings():
 @admin_bp.route('/monitoring')
 @admin_required
 def monitoring_dashboard():
-    """Dashboard de monitoramento de internet enriquecido"""
+    """Dashboard de monitoramento de internet enriquecido com cache"""
     from models import InternetAccessLog, InternetSource, KnownDevice
     from datetime import datetime, timedelta
     admin = get_current_admin()
     
-    # Estatísticas rápidas
-    now = datetime.utcnow()
-    today = now.replace(hour=0, minute=0, second=0)
-    last_24h = now - timedelta(hours=24)
+    # --- CACHE DE MONITORAMENTO (5 min) ---
+    now_ts = datetime.utcnow().timestamp()
+    cache = getattr(current_app, '_monitoring_cache', {})
     
-    # Horas para o gráfico (últimas 24h) - Otimizado em 1 única query
-    from sqlalchemy import func
-    
-    hourly_counts = db.session.query(
-        func.strftime('%H:00', InternetAccessLog.timestamp).label('hour'),
-        func.count(InternetAccessLog.id).label('count')
-    ).filter(
-        InternetAccessLog.timestamp >= last_24h
-    ).group_by('hour').all()
-    
-    # Mapeia resultados para o formato esperado pelo Chart.js (preservando ordem cronológica)
-    counts_map = {h: c for h, c in hourly_counts}
-    hours_data = []
-    labels = []
-    
-    for i in range(23, -1, -1):
-        h_label = (now - timedelta(hours=i)).strftime('%H:00')
-        labels.append(h_label)
-        hours_data.append(counts_map.get(h_label, 0))
+    if 'stats' in cache and now_ts - cache['timestamp'] < 300:
+        stats = cache['stats']
+        known_devices = cache['known_devices']
+    else:
+        # Estatísticas rápidas
+        now = datetime.utcnow()
+        today = now.replace(hour=0, minute=0, second=0)
+        last_24h = now - timedelta(hours=24)
+        
+        # Horas para o gráfico (últimas 24h) - Otimizado em 1 única query
+        from sqlalchemy import func
+        
+        hourly_counts = db.session.query(
+            func.strftime('%H:00', InternetAccessLog.timestamp).label('hour'),
+            func.count(InternetAccessLog.id).label('count')
+        ).filter(
+            InternetAccessLog.timestamp >= last_24h
+        ).group_by('hour').all()
+        
+        # Mapeia resultados para o formato esperado pelo Chart.js (preservando ordem cronológica)
+        counts_map = {h: c for h, c in hourly_counts}
+        hours_data = []
+        labels = []
+        
+        for i in range(23, -1, -1):
+            h_label = (now - timedelta(hours=i)).strftime('%H:00')
+            labels.append(h_label)
+            hours_data.append(counts_map.get(h_label, 0))
 
-    # Identificação de dispositivos conhecidos
-    known_macs = [d.mac_address for d in KnownDevice.query.all()]
-    
-    # Total de requisições por dispositivo (para separar conhecido/desconhecido)
-    device_requests = db.session.query(InternetAccessLog.mac_address, db.func.count(InternetAccessLog.id))\
-        .filter(InternetAccessLog.timestamp >= today)\
-        .group_by(InternetAccessLog.mac_address).all()
-    
-    known_count = 0
-    unknown_count = 0
-    for mac, count in device_requests:
-        if mac in known_macs:
-            known_count += count
-        else:
-            unknown_count += count
-
-    # Distribuição por categoria (apenas conhecidos)
-    category_data = db.session.query(KnownDevice.category, db.func.count(InternetAccessLog.id))\
-        .join(InternetAccessLog, KnownDevice.mac_address == InternetAccessLog.mac_address)\
-        .filter(InternetAccessLog.timestamp >= today)\
-        .group_by(KnownDevice.category).all()
-    
-    cat_labels = [c[0].capitalize() for c in category_data]
-    cat_counts = [c[1] for c in category_data]
-
-    stats = {
-        'total_requests_today': InternetAccessLog.query.filter(InternetAccessLog.timestamp >= today).count(),
-        'active_sources': InternetSource.query.filter_by(is_active=True).count(),
-        'known_vs_unknown': [known_count, unknown_count],
-        'category_labels': cat_labels,
-        'category_data': cat_counts,
-        'top_sites': db.session.query(InternetAccessLog.website, db.func.count(InternetAccessLog.id).label('total'))\
-            .filter(InternetAccessLog.timestamp >= today, InternetAccessLog.website != None)\
-            .group_by(InternetAccessLog.website)\
-            .order_by(db.desc('total')).limit(8).all(),
-        # Separa dispositivos para filtragem
-        'known_devices_stats': [list(row) for row in db.session.query(InternetAccessLog.ip_address, InternetAccessLog.hostname, InternetAccessLog.mac_address, db.func.count(InternetAccessLog.id).label('total'))\
-            .filter(InternetAccessLog.timestamp >= today, InternetAccessLog.mac_address.in_(known_macs))\
-            .group_by(InternetAccessLog.ip_address, InternetAccessLog.hostname, InternetAccessLog.mac_address)\
-            .order_by(db.desc('total')).limit(20).all()],
-        'unknown_devices_stats': [list(row) for row in db.session.query(InternetAccessLog.ip_address, InternetAccessLog.hostname, InternetAccessLog.mac_address, db.func.count(InternetAccessLog.id).label('total'))\
-            .filter(InternetAccessLog.timestamp >= today, ~InternetAccessLog.mac_address.in_(known_macs))\
-            .group_by(InternetAccessLog.ip_address, InternetAccessLog.hostname, InternetAccessLog.mac_address)\
-            .order_by(db.desc('total')).limit(20).all()],
-        'hostname_distribution': [[row[0], row[1]] for row in db.session.query(InternetAccessLog.hostname, db.func.count(InternetAccessLog.id).label('total'))\
+        # Identificação de dispositivos conhecidos
+        known_macs = [d.mac_address for d in KnownDevice.query.all()]
+        
+        # Total de requisições por dispositivo (para separar conhecido/desconhecido)
+        device_requests = db.session.query(InternetAccessLog.mac_address, db.func.count(InternetAccessLog.id))\
             .filter(InternetAccessLog.timestamp >= today)\
-            .group_by(InternetAccessLog.hostname)\
-            .order_by(db.desc('total')).all()],
-        'chart_labels': labels,
-        'chart_data': hours_data
-    }
-    
-    # Mapa de dispositivos conhecidos para ícones
-    known_devices = {d.mac_address: d.category for d in KnownDevice.query.all()}
+            .group_by(InternetAccessLog.mac_address).all()
+        
+        known_count = 0
+        unknown_count = 0
+        for mac, count in device_requests:
+            if mac in known_macs:
+                known_count += count
+            else:
+                unknown_count += count
+
+        # Distribuição por categoria (apenas conhecidos)
+        category_data = db.session.query(KnownDevice.category, db.func.count(InternetAccessLog.id))\
+            .join(InternetAccessLog, KnownDevice.mac_address == InternetAccessLog.mac_address)\
+            .filter(InternetAccessLog.timestamp >= today)\
+            .group_by(KnownDevice.category).all()
+        
+        cat_labels = [c[0].capitalize() for c in category_data]
+        cat_counts = [c[1] for c in category_data]
+
+        stats = {
+            'total_requests_today': InternetAccessLog.query.filter(InternetAccessLog.timestamp >= today).count(),
+            'active_sources': InternetSource.query.filter_by(is_active=True).count(),
+            'known_vs_unknown': [known_count, unknown_count],
+            'category_labels': cat_labels,
+            'category_data': cat_counts,
+            'top_sites': db.session.query(InternetAccessLog.website, db.func.count(InternetAccessLog.id).label('total'))\
+                .filter(InternetAccessLog.timestamp >= today, InternetAccessLog.website != None)\
+                .group_by(InternetAccessLog.website)\
+                .order_by(db.desc('total')).limit(8).all(),
+            # Separa dispositivos para filtragem
+            'known_devices_stats': [list(row) for row in db.session.query(InternetAccessLog.ip_address, InternetAccessLog.hostname, InternetAccessLog.mac_address, db.func.count(InternetAccessLog.id).label('total'))\
+                .filter(InternetAccessLog.timestamp >= today, InternetAccessLog.mac_address.in_(known_macs))\
+                .group_by(InternetAccessLog.ip_address, InternetAccessLog.hostname, InternetAccessLog.mac_address)\
+                .order_by(db.desc('total')).limit(20).all()],
+            'unknown_devices_stats': [list(row) for row in db.session.query(InternetAccessLog.ip_address, InternetAccessLog.hostname, InternetAccessLog.mac_address, db.func.count(InternetAccessLog.id).label('total'))\
+                .filter(InternetAccessLog.timestamp >= today, ~InternetAccessLog.mac_address.in_(known_macs))\
+                .group_by(InternetAccessLog.ip_address, InternetAccessLog.hostname, InternetAccessLog.mac_address)\
+                .order_by(db.desc('total')).limit(20).all()],
+            'hostname_distribution': [[row[0], row[1]] for row in db.session.query(InternetAccessLog.hostname, db.func.count(InternetAccessLog.id).label('total'))\
+                .filter(InternetAccessLog.timestamp >= today)\
+                .group_by(InternetAccessLog.hostname)\
+                .order_by(db.desc('total')).all()],
+            'chart_labels': labels,
+            'chart_data': hours_data
+        }
+        
+        # --- TOP DEVICES COM PRIORIDADE PARA CONHECIDOS ---
+        # Mapa de MAC -> hostname cadastrado (KnownDevice)
+        known_devices_map = {d.mac_address.upper(): d.hostname for d in KnownDevice.query.all()}
+        
+        # Busca dispositivos conhecidos primeiro (usando hostname cadastrado)
+        known_device_rows = db.session.query(
+            InternetAccessLog.ip_address,
+            InternetAccessLog.mac_address,
+            db.func.count(InternetAccessLog.id).label('total')
+        ).filter(
+            InternetAccessLog.timestamp >= today,
+            InternetAccessLog.mac_address.in_(known_macs)
+        ).group_by(InternetAccessLog.ip_address, InternetAccessLog.mac_address)\
+         .order_by(db.desc('total')).limit(10).all()
+        
+        top_devices = []
+        for row in known_device_rows:
+            mac = row[1].upper() if row[1] else None
+            hostname = known_devices_map.get(mac, 'Dispositivo Conhecido')
+            top_devices.append([row[0], hostname, row[1], row[2]])
+        
+        # Se não atingiu 10, completa com desconhecidos
+        remaining_slots = 10 - len(top_devices)
+        if remaining_slots > 0:
+            unknown_device_rows = db.session.query(
+                InternetAccessLog.ip_address,
+                InternetAccessLog.hostname,
+                InternetAccessLog.mac_address,
+                db.func.count(InternetAccessLog.id).label('total')
+            ).filter(
+                InternetAccessLog.timestamp >= today,
+                ~InternetAccessLog.mac_address.in_(known_macs) if known_macs else True
+            ).group_by(InternetAccessLog.ip_address, InternetAccessLog.hostname, InternetAccessLog.mac_address)\
+             .order_by(db.desc('total')).limit(remaining_slots).all()
+            
+            for row in unknown_device_rows:
+                top_devices.append([row[0], row[1] or 'Desconhecido', row[2], row[3]])
+        
+        stats['top_devices'] = top_devices
+        
+        # Mapa de dispositivos conhecidos para ícones
+        known_devices = {d.mac_address: d.category for d in KnownDevice.query.all()}
+        
+        # Salva no cache
+        current_app._monitoring_cache = {
+            'timestamp': now_ts,
+            'stats': stats,
+            'known_devices': known_devices
+        }
     
     return render_template('admin_monitoring_dashboard.html', admin=admin, stats=stats, known_devices=known_devices)
 
@@ -1373,6 +1551,192 @@ def monitoring_logs():
     known_devices = {d.mac_address: d.category for d in KnownDevice.query.all()}
     
     return render_template('admin_monitoring_logs.html', admin=admin, logs=logs, known_devices=known_devices, filters=request.args)
+
+
+@admin_bp.route('/monitoring/device/<string:identifier>')
+@admin_required
+def monitoring_device_details(identifier):
+    """Página de visualização detalhada de um dispositivo específico"""
+    from models import InternetAccessLog, KnownDevice
+    from sqlalchemy import func
+    admin = get_current_admin()
+    
+    # Tentamos encontrar o dispositivo pelo Hostname (já que KnownDevice não tem ip_address)
+    device = KnownDevice.query.filter(
+        KnownDevice.hostname == identifier
+    ).first()
+    
+    # Se não encontrar por hostname, e parecer um IP, tentamos buscar o hostname associado nos logs
+    if not device and '.' in identifier:
+        # Buscar todos os logs deste IP que tenham MAC address
+        log_entries = InternetAccessLog.query.filter(
+            InternetAccessLog.ip_address == identifier,
+            InternetAccessLog.mac_address.isnot(None),
+            InternetAccessLog.mac_address != ""
+        ).all()
+        
+        # Tentar encontrar o dispositivo pelo MAC de qualquer log
+        for log_entry in log_entries:
+            if log_entry.mac_address:
+                device = KnownDevice.query.filter_by(mac_address=log_entry.mac_address).first()
+                if device:
+                    break
+        
+        # Se ainda não encontrou, tentar buscar pelo hostname nos logs
+        if not device:
+            log_with_hostname = InternetAccessLog.query.filter(
+                InternetAccessLog.ip_address == identifier,
+                InternetAccessLog.hostname.isnot(None),
+                InternetAccessLog.hostname != ""
+            ).first()
+            
+            if log_with_hostname and log_with_hostname.hostname:
+                device = KnownDevice.query.filter(
+                    KnownDevice.hostname == log_with_hostname.hostname
+                ).first()
+    
+    # Se não for um dispositivo cadastrado, criamos um objeto temporário para o template
+    if not device:
+        # Tenta identificar se é IP ou Hostname para melhor exibição
+        is_ip = '.' in identifier and identifier.replace('.', '').isdigit()
+        
+        # Tenta buscar o hostname real e MAC nos registros de acesso recentes
+        detected_hostname = None
+        detected_mac = None
+        if is_ip:
+            last_log = InternetAccessLog.query.filter(
+                InternetAccessLog.ip_address == identifier,
+                InternetAccessLog.hostname.isnot(None),
+                InternetAccessLog.hostname != ""
+            ).order_by(InternetAccessLog.timestamp.desc()).first()
+            if last_log:
+                detected_hostname = last_log.hostname
+                detected_mac = last_log.mac_address
+
+        device = KnownDevice(
+            hostname=detected_hostname or (identifier if not is_ip else 'Dispositivo Desconhecido'),
+            mac_address=detected_mac or '',
+            category='other'
+        )
+        # Atribuímos o IP manualmente se necessário (apenas para exibição no template, não salvamos)
+        if is_ip:
+            device.temp_ip = identifier
+
+    # Estatísticas de Acesso
+    logs_query = InternetAccessLog.query.filter(
+        (InternetAccessLog.ip_address == identifier) | 
+        (InternetAccessLog.hostname == identifier)
+    )
+    
+    total_requests = logs_query.count()
+    
+    # Top Sites
+    top_sites = logs_query.with_entities(
+        InternetAccessLog.website, 
+        func.count(InternetAccessLog.id).label('hit_count'),
+        func.sum(InternetAccessLog.duration).label('total_duration'),
+        func.max(InternetAccessLog.timestamp).label('last_access')
+    ).group_by(InternetAccessLog.website).order_by(func.count(InternetAccessLog.id).desc()).limit(10).all()
+    
+    # Logs recentes para a tabela
+    recent_logs = logs_query.order_by(InternetAccessLog.timestamp.desc()).limit(100).all()
+
+    # Geração de Insight por IA (Protótipo/Simulado)
+    from ai_service import AIService
+    import markdown
+    raw_summary = AIService.generate_device_summary(identifier, top_sites)
+    
+    # Processa o markdown e adiciona suporte a alertas do GitHub (simplificado)
+    ai_summary = markdown.markdown(raw_summary, extensions=['extra', 'nl2br'])
+    
+    # Substituição para os alertas do GitHub (ex: > [!TIP]) para classes CSS
+    ai_summary = ai_summary.replace('<blockquote>\n<p>[!TIP]', '<div class="ai-tip"><strong>💡 Dica do Sistema:</strong><br>')
+    ai_summary = ai_summary.replace('</p>\n</blockquote>', '</div>')
+    
+    return render_template('admin_monitoring_device_details.html',
+                         admin=admin,
+                         device=device,
+                         identifier=identifier,
+                         total_requests=total_requests,
+                         top_sites=top_sites,
+                         recent_logs=recent_logs,
+                         ai_summary=ai_summary)
+
+
+@admin_bp.route('/monitoring/network-map')
+@admin_required
+def monitoring_network_map():
+    """Visão topológica da rede"""
+    from models import InternetSource, KnownDevice
+    admin = get_current_admin()
+    sources = InternetSource.query.filter_by(is_active=True).all()
+    devices = KnownDevice.query.filter_by(is_active=True).all()
+    
+    return render_template('admin_network_map.html', 
+                         admin=admin, 
+                         sources=sources, 
+                         devices=devices)
+
+
+@admin_bp.route('/monitoring/reports/productivity')
+@admin_required
+def monitoring_report_productivity():
+    """Relatório de produtividade correlacionando Agente + Logs"""
+    from models import InternetAccessLog, KnownDevice
+    from sqlalchemy import func
+    admin = get_current_admin()
+    
+    days = request.args.get('days', 7, type=int)
+    since = datetime.utcnow() - timedelta(days=days)
+    
+    # Query agregada por MAC e Website
+    stats_query = db.session.query(
+        InternetAccessLog.mac_address,
+        InternetAccessLog.website,
+        func.count(InternetAccessLog.id).label('hits'),
+        func.sum(InternetAccessLog.duration).label('total_duration')
+    ).filter(
+        InternetAccessLog.timestamp >= since,
+        InternetAccessLog.mac_address.isnot(None),
+        InternetAccessLog.mac_address != ""
+    ).group_by(
+        InternetAccessLog.mac_address,
+        InternetAccessLog.website
+    ).order_by(func.count(InternetAccessLog.id).desc()).all()
+    
+    # Mapear MAC para Nome de Usuário (via Agente)
+    devices = {d.mac_address: d for d in KnownDevice.query.all()}
+    
+    # Processar dados para o template
+    user_report = {}
+    for mac, site, hits, duration in stats_query:
+        device = devices.get(mac)
+        user_name = device.logged_user if device and device.logged_user else (device.hostname if device else f"MAC: {mac}")
+        
+        if user_name not in user_report:
+            user_report[user_name] = {
+                'name': user_name,
+                'device_name': device.hostname if device else '?',
+                'sites': [],
+                'total_hits': 0,
+                'total_sec': 0
+            }
+        
+        user_report[user_name]['sites'].append({
+            'domain': site,
+            'hits': hits,
+            'duration': duration or 0
+        })
+        user_report[user_name]['total_hits'] += hits
+        user_report[user_name]['total_sec'] += (duration or 0)
+
+    # Ordenar por usuários mais ativos
+    sorted_users = sorted(user_report.values(), key=lambda x: x['total_hits'], reverse=True)
+
+    return render_template('admin_report_productivity.html', 
+                         admin=admin, 
+                         users=sorted_users,
+                         days=days)
 
 
 @admin_bp.route('/monitoring/sources', methods=['GET', 'POST'])
@@ -1529,11 +1893,306 @@ def monitoring_device_edit(id):
 @admin_required
 def delete_known_device(id):
     """Remove um dispositivo conhecido"""
-    from models import KnownDevice
+    from models import KnownDevice, DeviceCommand
     device = KnownDevice.query.get_or_404(id)
+    # Limpa comandos órfãos
+    DeviceCommand.query.filter_by(device_id=id).delete()
     db.session.delete(device)
     db.session.commit()
     flash('Dispositivo removido com sucesso.', 'success')
     return redirect(url_for('admin.monitoring_devices'))
 
+
+@admin_bp.route('/monitoring/devices/<int:id>/command', methods=['POST'])
+@admin_required
+def device_command_send(id):
+    """Enfileira um novo comando para o dispositivo"""
+    from models import DeviceCommand
+    command_text = request.form.get('command')
+    if not command_text:
+        return jsonify({'success': False, 'message': 'Comando vazio'}), 400
+    
+    new_cmd = DeviceCommand(device_id=id, command_text=command_text)
+    db.session.add(new_cmd)
+    db.session.commit()
+    
+    return jsonify({'success': True, 'message': 'Comando enfileirado para o Agente', 'command_id': new_cmd.id})
+
+
+@admin_bp.route('/monitoring/devices/<int:id>/commands/history')
+@admin_required
+def device_commands_history(id):
+    """Retorna o histórico de comandos do dispositivo"""
+    from models import DeviceCommand
+    commands = DeviceCommand.query.filter_by(device_id=id).order_by(DeviceCommand.created_at.desc()).limit(20).all()
+    
+    data = []
+    for cmd in commands:
+        data.append({
+            'id': cmd.id,
+            'command': cmd.command_text,
+            'status': cmd.status,
+            'output': cmd.result_output,
+            'created_at': cmd.created_at.strftime('%H:%M:%S'),
+            'executed_at': cmd.executed_at.strftime('%H:%M:%S') if cmd.executed_at else None
+        })
+    
+    return jsonify({'success': True, 'commands': data})
+
 # Fim do arquivo
+
+
+@admin_bp.route('/server-status')
+@admin_required
+def server_status():
+    """Visualização de métricas e status do servidor"""
+    admin = get_current_admin()
+    
+    # Obter métricas via comandos shell
+    try:
+        # Memória
+        mem_output = subprocess.check_output(['free', '-m']).decode('utf-8')
+        mem_lines = mem_output.split('\n')
+        mem_stats = mem_lines[1].split()
+        memory = {
+            'total': mem_stats[1],
+            'used': mem_stats[2],
+            'free': mem_stats[3],
+            'percent': round(int(mem_stats[2]) / int(mem_stats[1]) * 100, 1)
+        }
+        
+        # Disco
+        disk_output = subprocess.check_output(['df', '-h', '/']).decode('utf-8')
+        disk_lines = disk_output.split('\n')
+        disk_stats = disk_lines[1].split()
+        disk = {
+            'total': disk_stats[1],
+            'used': disk_stats[2],
+            'free': disk_stats[3],
+            'percent': disk_stats[4].replace('%', '')
+        }
+        
+        # CPU & Uptime
+        uptime = subprocess.check_output(['uptime', '-p']).decode('utf-8').replace('up ', '')
+        load_avg = subprocess.check_output(['uptime']).decode('utf-8').split('load average:')[1].strip()
+        
+    except Exception as e:
+        current_app.logger.error(f"Erro ao obter métricas do servidor: {e}")
+        memory = disk = {'percent': 0, 'total': 'N/A', 'used': 'N/A', 'free': 'N/A'}
+        uptime = load_avg = "N/A"
+
+    # Status ES-SERVIDOR (reutilizando lógica do dashboard)
+    api = ESSERVIDORAPI(config.ESSERVIDOR_API_URL, config.ESSERVIDOR_API_KEY, timeout=3)
+    esservidor_online = api.check_connection()
+    
+    return render_template('admin_server_status.html', 
+                         admin=admin, 
+                         memory=memory, 
+                         disk=disk, 
+                         uptime=uptime, 
+                         load_avg=load_avg,
+                         esservidor_online=esservidor_online)
+@admin_bp.route('/monitoring/device/<mac>')
+@admin_required
+def device_analytics(mac):
+    """Visão granular de acessos por dispositivo com análise de IA"""
+    from models import InternetAccessLog, KnownDevice
+    admin = get_current_admin()
+    mac = mac.upper()
+    
+    # Período (default 24h)
+    days = request.args.get('days', 1, type=int)
+    since = datetime.utcnow() - timedelta(days=days)
+    
+    device = KnownDevice.query.filter_by(mac_address=mac).first()
+    
+    # Agregação de logs por domínio
+    logs_query = db.session.query(
+        InternetAccessLog.hostname,
+        db.func.count(InternetAccessLog.id).label('count')
+    ).filter(
+        InternetAccessLog.mac_address == mac,
+        InternetAccessLog.timestamp >= since
+    ).group_by(InternetAccessLog.hostname).order_by(db.desc('count')).all()
+    
+    logs_data = [{'hostname': row[0], 'count': row[1]} for row in logs_query]
+    
+    # Análise de IA
+    ai_analysis = ai_engine.analyze_behavior(
+        device.hostname if device else f"Dispositivo {mac}", 
+        mac, 
+        logs_data
+    )
+    
+    return render_template('admin_device_analytics.html',
+                         admin=admin,
+                         device=device,
+                         mac=mac,
+                         logs=logs_data,
+                         ai_analysis=ai_analysis,
+                         days=days)
+
+
+@admin_bp.route('/monitoring/devices/quick-register', methods=['POST'])
+@admin_required
+def device_quick_register():
+    """Cadastro rápido de dispositivo via AJAX"""
+    from models import KnownDevice
+    mac = request.form.get('mac_address', '').strip().upper()
+    hostname = request.form.get('hostname', '').strip()
+    category = request.form.get('category', 'pc')
+    
+    if not mac or not hostname:
+        return jsonify({'success': False, 'message': 'MAC e Nome são obrigatórios.'}), 400
+        
+    if KnownDevice.query.filter_by(mac_address=mac).first():
+        return jsonify({'success': False, 'message': 'Este MAC já está cadastrado.'}), 400
+        
+    new_device = KnownDevice(
+        mac_address=mac,
+        hostname=hostname,
+        category=category,
+        notes="Cadastrado via Fluxo Rápido"
+    )
+    db.session.add(new_device)
+    db.session.commit()
+    
+    return jsonify({'success': True, 'message': f'Dispositivo {hostname} cadastrado!'})
+
+
+# ==================== GERENCIAMENTO DE SERVIDORES NAS ====================
+
+@admin_bp.route('/file-servers')
+@admin_required
+def file_servers():
+    """Listagem de servidores de arquivos NAS"""
+    from models import FileServer
+    admin = get_current_admin()
+    servers = FileServer.query.order_by(FileServer.created_at.desc()).all()
+    return render_template('admin_file_servers.html', admin=admin, servers=servers)
+
+
+@admin_bp.route('/file-servers/new', methods=['GET', 'POST'])
+@admin_required
+def file_server_new():
+    """Criar novo servidor NAS"""
+    from models import FileServer
+    from database import encrypt_api_key
+    admin = get_current_admin()
+    
+    if request.method == 'POST':
+        name = request.form.get('name')
+        server_type = request.form.get('server_type')
+        protocol = request.form.get('protocol')
+        host = request.form.get('host')
+        port = request.form.get('port', type=int)
+        username = request.form.get('username')
+        password = request.form.get('password')
+        base_path = request.form.get('base_path', '/')
+        api_key = request.form.get('api_key')
+        notes = request.form.get('notes')
+        
+        # Validação
+        if not name or not host or not protocol:
+            flash('Nome, Host e Protocolo são obrigatórios', 'error')
+            return redirect(url_for('admin.file_server_new'))
+        
+        # Criptografar senha se fornecida
+        password_encrypted = None
+        if password:
+            password_encrypted = encrypt_api_key(password)
+        
+        server = FileServer(
+            name=name,
+            server_type=server_type or 'generic',
+            protocol=protocol,
+            host=host,
+            port=port,
+            username=username,
+            password_encrypted=password_encrypted,
+            base_path=base_path,
+            api_key=api_key,
+            notes=notes
+        )
+        
+        db.session.add(server)
+        db.session.commit()
+        
+        flash(f'Servidor {name} criado com sucesso!', 'success')
+        return redirect(url_for('admin.file_servers'))
+    
+    return render_template('admin_file_server_form.html', admin=admin, server=None)
+
+
+@admin_bp.route('/file-servers/<int:id>/edit', methods=['GET', 'POST'])
+@admin_required
+def file_server_edit(id):
+    """Editar servidor NAS"""
+    from models import FileServer
+    from database import encrypt_api_key
+    admin = get_current_admin()
+    server = FileServer.query.get_or_404(id)
+    
+    if request.method == 'POST':
+        server.name = request.form.get('name')
+        server.server_type = request.form.get('server_type', 'generic')
+        server.protocol = request.form.get('protocol')
+        server.host = request.form.get('host')
+        server.port = request.form.get('port', type=int)
+        server.username = request.form.get('username')
+        server.base_path = request.form.get('base_path', '/')
+        server.api_key = request.form.get('api_key')
+        server.notes = request.form.get('notes')
+        server.is_active = request.form.get('is_active') == 'on'
+        
+        # Atualizar senha apenas se fornecida
+        password = request.form.get('password')
+        if password:
+            server.password_encrypted = encrypt_api_key(password)
+        
+        db.session.commit()
+        flash(f'Servidor {server.name} atualizado!', 'success')
+        return redirect(url_for('admin.file_servers'))
+    
+    return render_template('admin_file_server_form.html', admin=admin, server=server)
+
+
+@admin_bp.route('/file-servers/<int:id>/delete', methods=['POST'])
+@admin_required
+def file_server_delete(id):
+    """Excluir servidor NAS"""
+    from models import FileServer
+    server = FileServer.query.get_or_404(id)
+    name = server.name
+    
+    db.session.delete(server)
+    db.session.commit()
+    
+    flash(f'Servidor {name} removido', 'success')
+    return redirect(url_for('admin.file_servers'))
+
+
+@admin_bp.route('/file-servers/<int:id>/test', methods=['POST'])
+@admin_required
+def file_server_test(id):
+    """Testar conexão com servidor NAS via AJAX"""
+    from models import FileServer
+    from nas_manager import test_file_server
+    
+    server = FileServer.query.get_or_404(id)
+    
+    try:
+        success, message, info = test_file_server(server)
+        db.session.commit()  # Salvar o status atualizado
+        
+        return jsonify({
+            'success': success,
+            'message': message,
+            'status': server.status,
+            'info': info,
+            'last_check': server.last_check.strftime('%d/%m/%Y %H:%M:%S') if server.last_check else None
+        })
+    except Exception as e:
+        current_app.logger.error(f"Erro ao testar servidor {id}: {e}")
+        return jsonify({'success': False, 'message': f'Erro: {str(e)}'}), 500
+

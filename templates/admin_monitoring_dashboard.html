@@ -7,7 +7,7 @@
 {% block content %}
 <!-- Top Metrics Section -->
 <div class="stats-grid mb-6">
-    <div class="stat-card">
+    <a href="{{ url_for('admin.monitoring_logs') }}" class="stat-card stat-primary">
         <div class="stat-icon primary">🌐</div>
         <div class="stat-info">
             <div class="stat-value">{{ stats.total_requests_today }}</div>
@@ -16,9 +16,9 @@
                 <span>↑ 12% em relação a ontem</span>
             </div>
         </div>
-    </div>
+    </a>
 
-    <div class="stat-card">
+    <a href="{{ url_for('admin.monitoring_sources') }}" class="stat-card stat-success">
         <div class="stat-icon success">📡</div>
         <div class="stat-info">
             <div class="stat-value">{{ stats.active_sources }}</div>
@@ -28,9 +28,9 @@
                 <span>Sistema Operacional</span>
             </div>
         </div>
-    </div>
+    </a>
 
-    <div class="stat-card">
+    <a href="{{ url_for('admin.monitoring_devices') }}" class="stat-card stat-success">
         <div class="stat-icon success">🛡️</div>
         <div class="stat-info">
             <div class="stat-value">{{ stats.known_vs_unknown[0] }}</div>
@@ -40,9 +40,9 @@
                     100)|round|int }}% do total</span>
             </div>
         </div>
-    </div>
+    </a>
 
-    <div class="stat-card accent-error">
+    <a href="{{ url_for('admin.monitoring_logs') }}" class="stat-card stat-error">
         <div class="stat-icon error">⚠️</div>
         <div class="stat-info">
             <div class="stat-value">{{ stats.known_vs_unknown[1] }}</div>
@@ -52,13 +52,13 @@
                     100)|round|int }}% do total</span>
             </div>
         </div>
-    </div>
+    </a>
 </div>
 
 <!-- Main Visualizations -->
 <div class="grid grid-cols-2 gap-6 mb-6">
     <!-- Activity Chart -->
-    <div class="card">
+    <div class="card card-clickable" onclick="window.location='{{ url_for('admin.monitoring_logs') }}'">
         <div class="card-header">
             <h3 class="card-title">📊 Atividade de Navegação (24h)</h3>
             <div class="badge badge-info">Real-time</div>
@@ -71,7 +71,7 @@
     </div>
 
     <!-- Category Distribution Chart (Doughnut) -->
-    <div class="card">
+    <div class="card card-clickable" onclick="window.location='{{ url_for('admin.monitoring_devices') }}'">
         <div class="card-header">
             <h3 class="card-title">📉 Distribuição por Categoria</h3>
         </div>
@@ -103,7 +103,8 @@
                 <h4 class="text-sm font-bold mb-3 text-muted">Top 10 Dispositivos</h4>
                 <div class="stack stack-2 scroll-panel">
                     {% for device in stats.top_devices[:10] %}
-                    <div class="p-3 bg-muted rounded-lg border">
+                    <div class="card card-clickable" style="padding: var(--space-3);"
+                        onclick="window.location='{{ url_for('admin.monitoring_device_details', identifier=device[0]) }}'">
                         <div class="flex items-center justify-between mb-2">
                             <div class="flex items-center gap-2">
                                 <span class="text-lg">
@@ -158,7 +159,8 @@
                     </thead>
                     <tbody>
                         {% for site, count in stats.top_sites %}
-                        <tr>
+                        <tr class="row-clickable"
+                            onclick="window.location='{{ url_for('admin.monitoring_logs', site=site) }}'">
                             <td>
                                 <div class="flex items-center gap-2">
                                     <div class="avatar-xs">

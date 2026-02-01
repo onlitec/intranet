@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Novo Dispositivo - {{ super() }}{% endblock %}
+{% block title %}{% if device %}Editar{% else %}Novo{% endif %} Dispositivo - {{ super() }}{% endblock %}
 
 {% block content %}
 <div class="content-header">
@@ -14,74 +14,205 @@
     </div>
 </div>
 
-<div class="card max-w-2xl">
-    <div class="card-body">
-        <form method="POST">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Form Section -->
+    <div class="lg:col-span-1">
+        <div class="card">
+            <div class="card-body">
+                <form method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div class="form-group">
-                    <label class="form-label">Hostname / Nome Amigável</label>
-                    <input type="text" name="hostname" class="form-control" placeholder="Ex: PC-VENDAS-01"
-                        value="{{ device.hostname if device else '' }}" required>
-                    <p class="text-xs text-muted mt-1">Como o dispositivo será identificado nos gráficos.</p>
+                    <div class="form-group mb-4">
+                        <label class="form-label">Hostname / Nome Amigável</label>
+                        <input type="text" name="hostname" class="form-control" placeholder="Ex: PC-VENDAS-01"
+                            value="{{ device.hostname if device else '' }}" required>
+                    </div>
+
+                    <div class="form-group mb-4">
+                        <label class="form-label">MAC Address</label>
+                        <input type="text" name="mac_address" class="form-control" placeholder="XX:XX:XX:XX:XX:XX"
+                            value="{{ device.mac_address if device else '' }}" required>
+                    </div>
+
+                    <div class="form-group mb-4">
+                        <label class="form-label">Categoria</label>
+                        <div class="grid grid-cols-2 gap-2">
+                            <label class="category-radio">
+                                <input type="radio" name="category" value="pc" {% if not device or device.category=='pc'
+                                    %}checked{% endif %}>
+                                <span>💻 PC</span>
+                            </label>
+                            <label class="category-radio">
+                                <input type="radio" name="category" value="smartphone" {% if device and
+                                    device.category=='smartphone' %}checked{% endif %}>
+                                <span>📱 Celular</span>
+                            </label>
+                            <label class="category-radio">
+                                <input type="radio" name="category" value="camera" {% if device and
+                                    device.category=='camera' %}checked{% endif %}>
+                                <span>📹 Câmera</span>
+                            </label>
+                            <label class="category-radio">
+                                <input type="radio" name="category" value="server" {% if device and
+                                    device.category=='server' %}checked{% endif %}>
+                                <span>🖥️ Servidor</span>
+                            </label>
+                            <label class="category-radio">
+                                <input type="radio" name="category" value="other" {% if device and
+                                    device.category=='other' %}checked{% endif %}>
+                                <span>🔌 Outro</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="form-group mb-4">
+                        <label class="form-label">Notas Adicionais</label>
+                        <textarea name="notes" class="form-control" rows="3"
+                            placeholder="Localização, dono do dispositivo, etc...">{{ device.notes if device else '' }}</textarea>
+                    </div>
+
+                    <div class="form-actions mt-6">
+                        <button type="submit" class="btn btn-primary btn-lg w-full">{% if device %}Atualizar{% else
+                            %}Salvar{% endif %}</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Terminal Section -->
+    <div class="lg:col-span-2">
+        {% if device and device.agent_version %}
+        <div class="card border-accent h-full flex flex-col">
+            <div class="card-header bg-surface-alt">
+                <h3 class="card-title">🖥️ Terminal Remoto (Agente v{{ device.agent_version }})</h3>
+                <span class="badge badge-success">Agente Ativo</span>
+            </div>
+            <div class="card-body flex flex-col flex-grow">
+                <p class="text-sm text-muted mb-4">Envie comandos em tempo real para o dispositivo via shell do Windows.
+                </p>
+
+                <div class="terminal-container flex flex-col flex-grow">
+                    <div class="form-group flex gap-2 mb-4">
+                        <input type="text" id="remote-command"
+                            class="form-control font-mono bg-black text-green-500 text-sm"
+                            style="border: 1px solid #333;" placeholder="C:\> Digite um comando...">
+                        <button type="button" onclick="sendCommand()" class="btn btn-accent px-6">Executar</button>
+                    </div>
+
+                    <div class="flex-grow">
+                        <h4 class="text-xs font-bold uppercase tracking-wider text-muted mb-2">📜 Histórico e Resultados
+                        </h4>
+                        <div class="table-responsive rounded border border-surface-alt bg-surface-alt overflow-hidden">
+                            <table class="table table-sm text-xs mb-0">
+                                <thead class="bg-surface">
+                                    <tr>
+                                        <th style="width: 80px;">Hora</th>
+                                        <th>Comando</th>
+                                        <th style="width: 120px;">Status</th>
+                                        <th>Saída</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="command-history">
+                                    <tr>
+                                        <td colspan="4" class="text-center py-8 text-muted italic">Carregando
+                                            histórico...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
-
-                <div class="form-group">
-                    <label class="form-label">MAC Address</label>
-                    <input type="text" name="mac_address" class="form-control" placeholder="XX:XX:XX:XX:XX:XX"
-                        value="{{ device.mac_address if device else '' }}" required>
-                    <p class="text-xs text-muted mt-1">Formato: 00:00:00:00:00:00</p>
-                </div>
             </div>
+        </div>
 
-            <div class="form-group mt-4">
-                <label class="form-label">Categoria</label>
-                <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
-                    <label class="category-radio">
-                        <input type="radio" name="category" value="pc" {% if not device or device.category=='pc'
-                            %}checked{% endif %}>
-                        <span>💻 Computador</span>
-                    </label>
-                    <label class="category-radio">
-                        <input type="radio" name="category" value="smartphone" {% if device and
-                            device.category=='smartphone' %}checked{% endif %}>
-                        <span>📱 Celular</span>
-                    </label>
-                    <label class="category-radio">
-                        <input type="radio" name="category" value="camera" {% if device and device.category=='camera'
-                            %}checked{% endif %}>
-                        <span>📷 Câmera/NVR</span>
-                    </label>
-                    <label class="category-radio">
-                        <input type="radio" name="category" value="pabx" {% if device and device.category=='pabx'
-                            %}checked{% endif %}>
-                        <span>☎️ Central PABX</span>
-                    </label>
-                    <label class="category-radio">
-                        <input type="radio" name="category" value="server" {% if device and device.category=='server'
-                            %}checked{% endif %}>
-                        <span>🖥️ Servidor</span>
-                    </label>
-                    <label class="category-radio">
-                        <input type="radio" name="category" value="other" {% if device and device.category=='other'
-                            %}checked{% endif %}>
-                        <span>🔌 Outro</span>
-                    </label>
-                </div>
-            </div>
+        <script>
+            function sendCommand() {
+                const btn = event.target;
+                const originalText = btn.innerText;
+                const cmdInput = document.getElementById('remote-command');
+                const cmd = cmdInput.value.trim();
+                if (!cmd) return;
 
-            <div class="form-group mt-6">
-                <label class="form-label">Notas Adicionais</label>
-                <textarea name="notes" class="form-control" rows="3"
-                    placeholder="Localização, dono do dispositivo, etc...">{{ device.notes if device else '' }}</textarea>
-            </div>
+                btn.disabled = true;
+                btn.innerText = '...';
 
-            <div class="form-actions mt-8">
-                <button type="submit" class="btn btn-primary btn-lg w-full">{% if device %}Atualizar{% else %}Salvar{%
-                    endif %} Dispositivo</button>
+                const formData = new FormData();
+                formData.append('command', cmd);
+
+                fetch("{{ url_for('admin.device_command_send', id=device.id) }}", {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': "{{ csrf_token() }}" },
+                    body: formData
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        btn.disabled = false;
+                        btn.innerText = originalText;
+                        if (data.success) {
+                            cmdInput.value = '';
+                            refreshHistory();
+                        } else {
+                            alert("Erro: " + data.message);
+                        }
+                    })
+                    .catch(err => {
+                        btn.disabled = false;
+                        btn.innerText = originalText;
+                        alert("Erro de conexão.");
+                    });
+            }
+
+            function refreshHistory() {
+                fetch("{{ url_for('admin.device_commands_history', id=device.id) }}")
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            const tbody = document.getElementById('command-history');
+                            tbody.innerHTML = '';
+                            if (data.commands.length === 0) {
+                                tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-muted">Nenhum comando enviado recentemente.</td></tr>';
+                                return;
+                            }
+                            data.commands.forEach(cmd => {
+                                const statusClass = cmd.status === 'success' ? 'status-online' : (cmd.status === 'error' ? 'status-offline' : 'text-warning');
+                                const statusDot = cmd.status === 'pending' || cmd.status === 'running' ? '<span class="status-dot animate-pulse"></span>' : '';
+
+                                tbody.innerHTML += `
+                            <tr class="border-b border-surface">
+                                <td class="whitespace-nowrap font-mono text-muted">${cmd.created_at}</td>
+                                <td class="font-mono"><code>${cmd.command}</code></td>
+                                <td class="${statusClass} font-bold text-[10px] uppercase">
+                                    ${cmd.status} ${cmd.executed_at ? '<br><small>@ ' + cmd.executed_at + '</small>' : ''}
+                                </td>
+                                <td>
+                                    <pre class="terminal-output">${cmd.output || (cmd.status === 'pending' ? 'Aguardando agente...' : 'Processando...')}</pre>
+                                </td>
+                            </tr>
+                        `;
+                            });
+                        }
+                    });
+            }
+
+            setInterval(() => { if (!document.hidden) refreshHistory(); }, 5000);
+            document.addEventListener('DOMContentLoaded', refreshHistory);
+        </script>
+        {% else %}
+        <div class="card bg-surface-alt flex items-center justify-center p-12 text-center h-full">
+            <div class="opacity-50">
+                <div class="text-4xl mb-4">📴</div>
+                <h3 class="text-lg font-bold">Terminal Indisponível</h3>
+                {% if not device %}
+                <p class="text-sm max-w-xs">Salve o dispositivo primeiro para ativar o terminal.</p>
+                {% else %}
+                <p class="text-sm max-w-xs">Este dispositivo não possui o Agente Windows instalado ou ativo.</p>
+                <a href="{{ url_for('admin.monitoring_devices') }}" class="btn btn-sm btn-outline mt-4">Ver Instruções
+                    do Agente</a>
+                {% endif %}
             </div>
-        </form>
+        </div>
+        {% endif %}
     </div>
 </div>
 
@@ -97,11 +228,12 @@
 
     .category-radio span {
         display: block;
-        padding: 12px;
+        padding: 10px;
         border: 1px solid var(--border-color);
         border-radius: 8px;
         text-align: center;
         transition: all 0.2s;
+        font-size: 0.85rem;
     }
 
     .category-radio input:checked+span {
@@ -109,6 +241,39 @@
         background: rgba(37, 99, 235, 0.05);
         color: var(--primary-color);
         font-weight: bold;
+    }
+
+    .border-accent {
+        border: 2px solid var(--accent) !important;
+    }
+
+    .terminal-output {
+        max-height: 80px;
+        overflow-y: auto;
+        white-space: pre-wrap;
+        word-break: break-all;
+        font-family: monospace;
+        font-size: 10px;
+        background: #000;
+        color: #10b981;
+        padding: 4px;
+        border-radius: 4px;
+    }
+
+    .animate-pulse {
+        animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+
+    @keyframes pulse {
+
+        0%,
+        100% {
+            opacity: 1;
+        }
+
+        50% {
+            opacity: .5;
+        }
     }
 </style>
 {% endblock %}

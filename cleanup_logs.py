@@ -30,8 +30,8 @@ def _get_int(name: str, default: int) -> int:
 
 def main():
     """Executa a limpeza de logs antigos."""
-    internet_days = _get_int("INTERNET_LOG_RETENTION_DAYS", 90)
-    access_days = _get_int("ACCESS_LOG_RETENTION_DAYS", 180)
+    internet_days = _get_int("INTERNET_LOG_RETENTION_DAYS", 7)
+    access_days = _get_int("ACCESS_LOG_RETENTION_DAYS", 30)
     dry_run = os.getenv("DRY_RUN", "false").lower() == "true"
 
     now = datetime.utcnow()
@@ -74,6 +74,14 @@ def main():
 
             db.session.commit()
             print("[cleanup] Remoção concluída com sucesso.")
+            
+            # Executa VACUUM se houver muitas deleções
+            if internet_count > 100000:
+                print("[cleanup] Executando VACUUM para recuperar espaço em disco...")
+                db.session.execute(db.text("VACUUM"))
+                db.session.commit()
+                print("[cleanup] VACUUM concluído.")
+                
             return 0
 
     except Exception as e:

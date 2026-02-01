@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+
+{% block title %}Mapa de Rede - {{ super() }}{% endblock %}
+
+{% block content %}
+<div class="content-header">
+    <div>
+        <h1 class="content-title">Mapa de Rede</h1>
+        <p class="content-subtitle">Visão topológica dos dispositivos conectados e fontes de dados.</p>
+    </div>
+</div>
+
+<div class="network-canvas-container">
+    <div id="network-map" class="network-map">
+        <!-- Fontes de Internet (Center/Top) -->
+        <div class="map-section section-sources">
+            <h4 class="section-label">FONTES DE DADOS</h4>
+            <div class="sources-list">
+                {% for source in sources %}
+                <div class="map-node node-source" title="{{ source.provider }}">
+                    <div class="node-icon">📡</div>
+                    <div class="node-name">{{ source.name }}</div>
+                    <div class="node-status status-online"></div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="map-connector-v"></div>
+
+        <!-- Servidor Central -->
+        <div class="map-section section-server">
+            <div class="map-node node-server">
+                <div class="node-icon">🖥️</div>
+                <div class="node-name">ES-SERVIDOR</div>
+                <div class="node-details">Portal Intranet</div>
+            </div>
+        </div>
+
+        <div class="map-connector-v"></div>
+
+        <!-- Dispositivos (Bottom) -->
+        <div class="map-section section-devices">
+            <h4 class="section-label">DISPOSITIVOS ATIVOS (AGENTE)</h4>
+            <div class="devices-cloud">
+                {% for device in devices %}
+                {% set is_online = device.last_report and (now() - device.last_report).total_seconds() < 600 %} {% if
+                    is_online %} <div class="map-node node-device online"
+                    onclick="window.location.href='{{ url_for('admin.monitoring_device_edit', id=device.id) }}';">
+                    <div class="node-icon">{{ device.get_icon() }}</div>
+                    <div class="node-name">{{ device.hostname }}</div>
+                    <div class="node-user">{{ device.logged_user or '---' }}</div>
+            </div>
+            {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+</div>
+</div>
+
+<style>
+    .network-canvas-container {
+        background: var(--bg-base);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        padding: 40px;
+        min-height: 600px;
+        display: flex;
+        justify-content: center;
+        overflow: auto;
+    }
+
+    .network-map {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        width: 100%;
+        max-width: 1000px;
+    }
+
+    .map-section {
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 20px;
+        border: 1px dashed var(--border);
+        border-radius: var(--radius-md);
+        position: relative;
+        background: rgba(255, 255, 255, 0.02);
+    }
+
+    .section-label {
+        position: absolute;
+        top: -10px;
+        left: 20px;
+        background: var(--bg-base);
+        padding: 0 10px;
+        font-size: 0.75rem;
+        font-weight: 800;
+        color: var(--accent);
+        letter-spacing: 0.1em;
+    }
+
+    .sources-list,
+    .devices-cloud {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 20px;
+        justify-content: center;
+    }
+
+    .map-node {
+        background: var(--bg-surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        padding: 15px;
+        width: 140px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        transition: all 0.2s;
+        position: relative;
+    }
+
+    .map-node:hover {
+        border-color: var(--accent);
+        transform: scale(1.05);
+        box-shadow: var(--shadow-md);
+    }
+
+    .node-icon {
+        font-size: 2rem;
+        margin-bottom: 8px;
+    }
+
+    .node-name {
+        font-weight: 700;
+        font-size: 0.85rem;
+        word-break: break-all;
+    }
+
+    .node-details,
+    .node-user {
+        font-size: 0.7rem;
+        color: var(--text-muted);
+    }
+
+    .map-connector-v {
+        width: 2px;
+        height: 40px;
+        background: linear-gradient(to bottom, var(--accent), var(--border));
+    }
+
+    .node-server {
+        border: 2px solid var(--accent);
+        width: 180px;
+    }
+
+    .node-device.online {
+        border-bottom: 3px solid #22c55e;
+    }
+
+    .node-device.online::after {
+        content: '';
+        position: absolute;
+        top: 5px;
+        right: 5px;
+        width: 6px;
+        height: 6px;
+        background: #22c55e;
+        border-radius: 50%;
+    }
+</style>
+{% endblock %}

@@ -48,25 +48,21 @@
                         <th>💻 Dispositivo</th>
                         <th>🌐 Website / Destino</th>
                         <th>⌛ Duração</th>
-                        <th class="text-right">🛡️ Status</th>
+                        <th>🛡️ Status</th>
+                        <th class="text-right">🛠️ Gestão</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for log in logs.items %}
-                    <tr>
+                    <tr class="row-clickable"
+                        onclick="if(!event.target.closest('.btn-action')) window.location='{{ url_for('admin.device_analytics', mac=log.mac_address) if log.mac_address else url_for('admin.monitoring_device_details', identifier=log.ip_address or log.hostname) }}'">
                         <td class="timestamp-badge">
-                            {{ log.timestamp.strftime('%d/%m/%Y') }}<br>
-                            <span class="text-lg font-bold text-primary">{{ log.timestamp.strftime('%H:%M:%S') }}</span>
+                            {{ log.timestamp|localdatetime|strftime('%d/%m/%Y') }}<br>
+                            <span class="text-lg font-bold text-primary">{{
+                                log.timestamp|localdatetime|strftime('%H:%M:%S') }}</span>
                         </td>
                         <td>
                             <div class="log-device">
-                                {% set known = None %}
-                                {% if log.mac_address %}
-                                {# Nota: Idealmente isso seria feito no backend, mas como o cache de dispositivos já
-                                está no motor, podemos fazer um lookup simples se passarmos os devices conhecidos para o
-                                template ou apenas usar o hostname que o motor já resolveu. No entanto, para o ícone
-                                customizado, vamos assumir que o hostname é o do dispositivo conhecido. #}
-                                {% endif %}
                                 <div class="device-icon">
                                     {% set category = known_devices.get(log.mac_address) %}
                                     {% if category == 'pc' %}💻
@@ -83,7 +79,8 @@
                                     <div class="font-bold flex items-center gap-2">
                                         {% if log.hostname %}
                                         {{ log.hostname }}
-                                        {% if log.mac_address %}<span class="badge badge-primary badge-xs">Known</span>{% endif %}
+                                        {% if log.mac_address %}<span
+                                            class="badge badge-primary badge-xs">Known</span>{% endif %}
                                         {% elif log.mac_address %}
                                         {{ log.mac_address }} <span class="text-muted text-xs">({{ log.ip_address
                                             }})</span>
@@ -91,14 +88,15 @@
                                         {{ log.ip_address }}
                                         {% endif %}
                                     </div>
-                                    {% if log.hostname %}
                                     <div class="flex items-center gap-2 mt-1">
                                         <code class="text-xs">{{ log.ip_address }}</code>
                                         {% if log.mac_address %}
-                                        <code class="text-xs">{{ log.mac_address }}</code>
+                                        <a href="{{ url_for('admin.device_analytics', mac=log.mac_address) }}"
+                                            class="btn-action text-accent hover:underline">
+                                            <code class="text-xs">{{ log.mac_address }}</code>
+                                        </a>
                                         {% endif %}
                                     </div>
-                                    {% endif %}
                                 </div>
                             </div>
                         </td>
@@ -113,17 +111,27 @@
                         <td>
                             <span class="badge badge-secondary">{{ log.duration or '0' }}s</span>
                         </td>
-                        <td class="text-right">
+                        <td>
                             {% if log.action == 'allowed' %}
                             <span class="badge badge-success">✅ Permitido</span>
                             {% else %}
                             <span class="badge badge-error">🚫 Bloqueado</span>
                             {% endif %}
                         </td>
+                        <td class="text-right">
+                            <div class="flex justify-end gap-2">
+                                <a href="{{ url_for('admin.device_analytics', mac=log.mac_address if log.mac_address else 'none') }}"
+                                    class="btn-action btn btn-xs btn-outline" title="Análise IA">🧠</a>
+                                {% if log.mac_address and not (log.mac_address in known_devices) %}
+                                <button onclick="openQuickRegister('{{ log.mac_address }}')"
+                                    class="btn-action btn btn-xs btn-primary font-bold" title="Cadastrar">+📝</button>
+                                {% endif %}
+                            </div>
+                        </td>
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="5" class="text-center p-12">
+                        <td colspan="6" class="text-center p-12">
                             <div class="text-4xl mb-4">🔎</div>
                             <div class="text-lg font-bold">Nenhum registro encontrado</div>
                             <p class="text-muted">Tente ajustar seus filtros para encontrar o que procura.</p>
@@ -134,6 +142,106 @@
             </table>
         </div>
     </div>
+
+    <!-- Paginação e Modal -->
+    <div id="quick-register-modal" class="modal">
+        <div class="modal-content card">
+            <div class="card-header border-b border-surface-alt flex justify-between items-center bg-surface-alt">
+                <h3 class="card-title">🚀 Cadastro Rápido de Dispositivo</h3>
+                <button onclick="closeModal()" class="btn-icon">×</button>
+            </div>
+            <div class="card-body">
+                <form id="quick-reg-form">
+                    <input type="hidden" id="reg-mac" name="mac_address">
+                    <div class="form-group mb-4">
+                        <label class="form-label text-xs uppercase text-muted">MAC Detectado</label>
+                        <input type="text" id="reg-mac-display" class="form-control" disabled style="opacity: 0.6">
+                    </div>
+                    <div class="form-group mb-4">
+                        <label class="form-label">Nome p/ Identificação</label>
+                        <input type="text" id="reg-hostname" class="form-control" placeholder="Ex: PC-SALA-FINANC"
+                            required>
+                    </div>
+                    <div class="form-group mb-4">
+                        <label class="form-label">Categoria</label>
+                        <select id="reg-category" class="form-control">
+                            <option value="pc">💻 Computador</option>
+                            <option value="smartphone">📱 Smartphone</option>
+                            <option value="server">🖥️ Servidor</option>
+                            <option value="other">🔌 Outro</option>
+                        </select>
+                    </div>
+                    <button type="button" onclick="submitQuickRegister()"
+                        class="btn btn-accent w-full mt-4 font-bold py-3">Salvar na Rede</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 2000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(8px);
+        }
+
+        .modal-content {
+            margin: 12% auto;
+            width: 420px;
+            border: 2px solid var(--accent);
+        }
+
+        .btn-icon {
+            background: none;
+            border: none;
+            font-size: 28px;
+            color: var(--text-muted);
+            cursor: pointer;
+            line-height: 1;
+        }
+
+        .btn-xs {
+            padding: 4px 8px;
+            font-size: 10px;
+        }
+
+        .btn-action {
+            position: relative;
+            z-index: 10;
+        }
+    </style>
+
+    <script>
+        function openQuickRegister(mac) {
+            document.getElementById('reg-mac').value = mac;
+            document.getElementById('reg-mac-display').value = mac;
+            document.getElementById('quick-register-modal').style.display = 'block';
+        }
+        function closeModal() { document.getElementById('quick-register-modal').style.display = 'none'; }
+        function submitQuickRegister() {
+            const mac = document.getElementById('reg-mac').value;
+            const hostname = document.getElementById('reg-hostname').value;
+            const category = document.getElementById('reg-category').value;
+            if (!hostname) return alert('Por favor, informe um nome.');
+            const fd = new FormData();
+            fd.append('mac_address', mac);
+            fd.append('hostname', hostname);
+            fd.append('category', category);
+            fetch("{{ url_for('admin.device_quick_register') }}", {
+                method: 'POST',
+                headers: { 'X-CSRFToken': "{{ csrf_token() }}" },
+                body: fd
+            }).then(r => r.json()).then(data => {
+                if (data.success) { location.reload(); } else { alert(data.message); }
+            });
+        }
+    </script>
 
     <!-- Paginação Profissional -->
     <div class="card-footer pagination-footer">

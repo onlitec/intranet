@@ -6,22 +6,20 @@
 {% block body %}
 <div class="login-container">
     <div class="login-header">
-        <div class="login-logo">🔒</div>
-        <span class="login-badge" style="background: var(--error-light); color: var(--error);">⚙️ ADMIN</span>
+        <div class="login-logo">
+            <img src="{{ settings.site_logo }}" alt="Logo" onerror="this.style.display='none'">
+        </div>
         <h1 class="login-title">Painel Admin</h1>
-        <p class="login-subtitle">Acesso restrito a administradores</p>
+        <span class="login-badge">⚙️ Administrador</span>
     </div>
 
     <!-- Flash Messages -->
     {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
-    <div class="flash-container" style="margin-bottom: 24px;">
+    <div class="flash-stack" style="margin-bottom: 20px;">
         {% for category, message in messages %}
-        <div class="alert alert-{{ category }}">
-            <span class="alert-icon">
-                {% if category == 'success' %}✓{% elif category == 'error' %}✕{% else %}ℹ{% endif %}
-            </span>
-            <span class="alert-message">{{ message }}</span>
+        <div class="flash-toast flash-{{ category }}">
+            <p>{{ message }}</p>
         </div>
         {% endfor %}
     </div>
@@ -30,6 +28,7 @@
 
     <form method="POST" action="{{ url_for('admin.login') }}" id="adminLoginForm">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
         <div class="form-group">
             <label for="username" class="form-label">Usuário Admin</label>
             <input type="text" id="username" name="username" class="form-control" placeholder="admin" required autofocus
@@ -42,16 +41,14 @@
                 autocomplete="current-password">
         </div>
 
-        <button type="submit" class="btn btn-primary btn-block btn-lg" id="loginBtn">
+        <button type="submit" class="btn btn-primary btn-block" id="loginBtn">
             <span class="btn-text">Acessar Painel</span>
-            <span class="btn-loader" style="display: none;">
-                <span class="spinner"></span> Validando...
-            </span>
+            <span class="btn-loader" style="display: none;">Validando...</span>
         </button>
     </form>
 
-    <div class="login-footer">
-        <a href="{{ url_for('home') }}">← Voltar para início</a>
+    <div class="login-footer" style="margin-top: 24px; text-align: center;">
+        <a href="{{ url_for('home') }}" style="font-size: 0.875rem;">← Voltar para início</a>
     </div>
 </div>
 

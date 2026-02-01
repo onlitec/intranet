@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+
+{% block title %}Status do Servidor{% endblock %}
+{% block page_title %}Status do Servidor{% endblock %}
+{% block page_subtitle %}Métricas de hardware e status de serviços em tempo real{% endblock %}
+
+{% block content %}
+<div class="stats-grid mb-6">
+    <!-- Memória -->
+    <div class="stat-card stat-primary">
+        <div class="stat-icon primary">🧠</div>
+        <div class="stat-info">
+            <div class="stat-value">{{ memory.percent }}%</div>
+            <div class="stat-label">Uso de Memória</div>
+            <div class="text-xs text-muted mt-1">{{ memory.used }}MB / {{ memory.total }}MB</div>
+        </div>
+        <div class="progress-container mt-3"
+            style="width: 100%; height: 6px; background: var(--bg-muted); border-radius: 3px;">
+            <div class="progress-bar"
+                style="width: {{ memory.percent }}%; height: 100%; background: var(--primary); border-radius: 3px;">
+            </div>
+        </div>
+    </div>
+
+    <!-- Disco -->
+    <div class="stat-card stat-success">
+        <div class="stat-icon success">💾</div>
+        <div class="stat-info">
+            <div class="stat-value">{{ disk.percent }}%</div>
+            <div class="stat-label">Uso de Disco</div>
+            <div class="text-xs text-muted mt-1">{{ disk.used }} / {{ disk.total }}</div>
+        </div>
+        <div class="progress-container mt-3"
+            style="width: 100%; height: 6px; background: var(--bg-muted); border-radius: 3px;">
+            <div class="progress-bar"
+                style="width: {{ disk.percent }}%; height: 100%; background: var(--success); border-radius: 3px;"></div>
+        </div>
+    </div>
+
+    <!-- Uptime -->
+    <div class="stat-card stat-warning">
+        <div class="stat-icon warning">🕒</div>
+        <div class="stat-info">
+            <div class="stat-value text-lg" style="font-size: 1.1rem;">{{ uptime }}</div>
+            <div class="stat-label">Tempo Ativo</div>
+        </div>
+    </div>
+
+    <!-- Load Average -->
+    <div class="stat-card stat-info">
+        <div class="stat-icon info">⚡</div>
+        <div class="stat-info">
+            <div class="stat-value text-lg" style="font-size: 1.1rem;">{{ load_avg }}</div>
+            <div class="stat-label">Carga do Sistema</div>
+        </div>
+    </div>
+</div>
+
+<div class="grid grid-cols-2 gap-6">
+    <!-- ES-SERVIDOR Status -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Integração ES-SERVIDOR</h3>
+        </div>
+        <div class="card-body">
+            <div class="flex items-center gap-4 mb-6">
+                <div
+                    class="status-indicator {% if esservidor_online %}status-online{% else %}status-offline{% endif %}">
+                    <span class="status-dot"></span>
+                    <span class="font-bold">{{ 'Conectado' if esservidor_online else 'Desconectado' }}</span>
+                </div>
+            </div>
+            <div class="stack stack-3">
+                <div class="flex justify-between p-3 bg-muted rounded">
+                    <span class="text-muted">Status da API</span>
+                    <span class="badge {% if esservidor_online %}badge-success{% else %}badge-error{% endif %}">
+                        {{ 'OK' if esservidor_online else 'Erro de Conexão' }}
+                    </span>
+                </div>
+                <div class="flex justify-between p-3 bg-muted rounded">
+                    <span class="text-muted">Sincronização</span>
+                    <span class="text-sm">Automática (Ativa)</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- System Info -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Informações do Sistema</h3>
+        </div>
+        <div class="card-body p-0">
+            <table class="data-table">
+                <tbody>
+                    <tr>
+                        <td class="text-muted">OS</td>
+                        <td class="font-mono text-sm">Linux (Ubuntu/Debian)</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Host</td>
+                        <td class="font-mono text-sm">intranet-es-servidor</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Serviço Engine</td>
+                        <td><span class="badge badge-success">Ativo</span></td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Banco de Dados</td>
+                        <td>SQLite (Saudável)</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

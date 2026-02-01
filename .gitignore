@@ -44,3 +44,5 @@ instance/
 htmlcov/
 .coverage
 .coverage.*
+*.db-shm
+*.db-wal

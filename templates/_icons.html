@@ -1,5 +1,5 @@
 {% macro icon(name, class='') -%}
-<svg class="icon {{ class }}" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+<svg class="icon {{ class }}" width="18" height="18" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
     stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
     {%- if name == 'dashboard' -%}
     <rect x="3" y="3" width="8" height="8" rx="2"></rect>
@@ -33,10 +33,10 @@
     <path d="M8 20h8"></path>
     <path d="M12 16v4"></path>
     {%- elif name == 'settings' -%}
+    <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"></path>
     <path
-        d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"></path>
-    <path
-        d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 0 1-1.4 3.4h-.2a1.7 1.7 0 0 0-1.6 1.1 2 2 0 0 1-3.6 0 1.7 1.7 0 0 0-1.6-1.1H10a1.7 1.7 0 0 0-1.6 1.1 2 2 0 0 1-3.6 0A1.7 1.7 0 0 0 3.2 20h-.2A2 2 0 0 1 1.6 16.6l.1-.1A1.7 1.7 0 0 0 2 15a1.7 1.7 0 0 0-.3-1.9l-.1-.1A2 2 0 0 1 3 9.6h.2A1.7 1.7 0 0 0 4.8 8.5a2 2 0 0 1 3.6 0A1.7 1.7 0 0 0 10 9.6h.4A1.7 1.7 0 0 0 12 8.5a2 2 0 0 1 3.6 0 1.7 1.7 0 0 0 1.6 1.1h.2A2 2 0 0 1 22.4 13l-.1.1a1.7 1.7 0 0 0-.3 1.9z"></path>
+        d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 0 1-1.4 3.4h-.2a1.7 1.7 0 0 0-1.6 1.1 2 2 0 0 1-3.6 0 1.7 1.7 0 0 0-1.6-1.1H10a1.7 1.7 0 0 0-1.6 1.1 2 2 0 0 1-3.6 0A1.7 1.7 0 0 0 3.2 20h-.2A2 2 0 0 1 1.6 16.6l.1-.1A1.7 1.7 0 0 0 2 15a1.7 1.7 0 0 0-.3-1.9l-.1-.1A2 2 0 0 1 3 9.6h.2A1.7 1.7 0 0 0 4.8 8.5a2 2 0 0 1 3.6 0A1.7 1.7 0 0 0 10 9.6h.4A1.7 1.7 0 0 0 12 8.5a2 2 0 0 1 3.6 0 1.7 1.7 0 0 0 1.6 1.1h.2A2 2 0 0 1 22.4 13l-.1.1a1.7 1.7 0 0 0-.3 1.9z">
+    </path>
     {%- elif name == 'calendar' -%}
     <rect x="3" y="4" width="18" height="18" rx="2"></rect>
     <path d="M16 2v4"></path>
@@ -52,9 +52,20 @@
     <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
     <path d="M16 17l5-5-5-5"></path>
     <path d="M21 12H9"></path>
+    {%- elif name == 'sun' -%}
+    <circle cx="12" cy="12" r="5"></circle>
+    <line x1="12" y1="1" x2="12" y2="3"></line>
+    <line x1="12" y1="21" x2="12" y2="23"></line>
+    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+    <line x1="1" y1="12" x2="3" y2="12"></line>
+    <line x1="21" y1="12" x2="23" y2="12"></line>
+    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    {%- elif name == 'moon' -%}
+    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
     {%- else -%}
     <circle cx="12" cy="12" r="10"></circle>
     {%- endif -%}
 </svg>
 {%- endmacro %}
-

@@ -202,8 +202,24 @@ function setupSidebarToggle() {
     const sidebar = document.getElementById('app-sidebar');
     const toggleBtn = document.querySelector('.sidebar-toggle');
     const backdrop = document.getElementById('sidebar-backdrop');
+    const collapseToggle = document.querySelector('.sidebar-collapse-toggle');
 
-    if (!sidebar || !toggleBtn || !backdrop) return;
+    if (!sidebar) return;
+
+    // Persistência do colapso (desktop)
+    const isCollapsed = localStorage.getItem('sidebar-collapsed') === 'true';
+    if (isCollapsed && window.innerWidth > 1024) {
+        sidebar.classList.add('collapsed');
+    }
+
+    if (collapseToggle) {
+        collapseToggle.addEventListener('click', function () {
+            sidebar.classList.toggle('collapsed');
+            localStorage.setItem('sidebar-collapsed', sidebar.classList.contains('collapsed'));
+        });
+    }
+
+    if (!toggleBtn || !backdrop) return;
 
     function openSidebar() {
         sidebar.classList.add('open');
@@ -251,8 +267,96 @@ function setupSidebarToggle() {
 }
 
 // ========================================
-// Animations
+// BRUTALIST REVEAL ANIMATIONS - MANDATORY
 // ========================================
+
+/**
+ * Setup scroll-triggered reveal animations
+ */
+function setupRevealAnimations() {
+    const observerOptions = {
+        threshold: 0.1,
+        rootMargin: '0px 0px -50px 0px'
+    };
+    
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                entry.target.classList.add('active');
+            }
+        });
+    }, observerOptions);
+    
+    // Observe all reveal elements
+    document.querySelectorAll('.reveal, .reveal-left, .reveal-right').forEach(el => {
+        observer.observe(el);
+    });
+}
+
+/**
+ * Setup aggressive micro-interactions
+ */
+function setupMicroInteractions() {
+    // Enhanced button interactions
+    document.querySelectorAll('.btn').forEach(btn => {
+        btn.addEventListener('mouseenter', function() {
+            this.style.transform = 'translateY(-2px) scale(1.02)';
+        });
+        
+        btn.addEventListener('mouseleave', function() {
+            this.style.transform = 'translateY(0) scale(1)';
+        });
+    });
+    
+    // Card hover effects with 3D transform
+    document.querySelectorAll('.card-clickable').forEach(card => {
+        card.addEventListener('mouseenter', function(e) {
+            const rect = this.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            this.style.transform = `perspective(1000px) rotateX(${(y - rect.height/2) * -0.01}deg) rotateY(${(x - rect.width/2) * 0.01}deg) translateY(-8px)`;
+        });
+        
+        card.addEventListener('mousemove', function(e) {
+            const rect = this.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            this.style.transform = `perspective(1000px) rotateX(${(y - rect.height/2) * -0.01}deg) rotateY(${(x - rect.width/2) * 0.01}deg) translateY(-8px)`;
+        });
+        
+        card.addEventListener('mouseleave', function() {
+            this.style.transform = 'perspective(1000px) rotateX(0) rotateY(0) translateY(0)';
+        });
+    });
+    
+    // Handle data-url clicks for cards and rows
+    document.querySelectorAll('.card-clickable[data-url]').forEach(card => {
+        card.addEventListener('click', function() {
+            window.location = this.dataset.url;
+        });
+    });
+    
+    document.querySelectorAll('.row-clickable[data-url]').forEach(row => {
+        row.addEventListener('click', function() {
+            window.location = this.dataset.url;
+        });
+    });
+}
+
+/**
+ * Setup floating animations for specific elements
+ */
+function setupFloatingAnimations() {
+    document.querySelectorAll('.floating').forEach(el => {
+        el.style.animation = 'float 6s ease-in-out infinite';
+    });
+    
+    document.querySelectorAll('.pulse').forEach(el => {
+        el.style.animation = 'pulse 2s ease-in-out infinite';
+    });
+}
 
 // Add slide-in animation keyframes dynamically
 const style = document.createElement('style');
@@ -301,9 +405,14 @@ document.addEventListener('DOMContentLoaded', function () {
     autoDismissFlashMessages();
     setupKeyboardShortcuts();
     setupSidebarToggle();
+    
+    // BRUTALIST ENHANCEMENTS - MANDATORY
+    setupRevealAnimations();
+    setupMicroInteractions();
+    setupFloatingAnimations();
 
     // Log app initialization
-    console.log('✓ Intranet ES-SERVIDOR inicializado');
+    console.log('✓ Intranet ES-SERVIDOR BRUTALIST inicializado');
 });
 
 // ========================================

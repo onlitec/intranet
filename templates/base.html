@@ -1,15 +1,22 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR" data-theme="dark">
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Intranet Corporativa ES-SERVIDOR - Sistema de Gerenciamento">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="description" content="Intranet Corporativa ES-SERVIDOR - Gerenciamento Profissional">
     <meta name="author" content="{{ settings.site_title }}">
     <title>{% block title %}Intranet{% endblock %} - {{ settings.site_title }}</title>
 
-    <!-- CSS -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <!-- Google Fonts: Plus Jakarta Sans (Enterprise UI) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap"
+        rel="stylesheet">
+
+    <!-- CSS (Version Bump for Cache Busting) -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20260131_v5">
 
     <!-- Favicon -->
     <link rel="icon" type="image/png" href="{{ settings.site_favicon }}">
@@ -18,59 +25,32 @@
 </head>
 
 <body class="{% block body_class %}app-layout{% endblock %}">
+    <script>
+        (function () {
+            const savedTheme = localStorage.getItem('theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+        })();
+    </script>
+
     {% block body %}
     {% from "_icons.html" import icon %}
+
     <!-- Sidebar -->
     <aside class="sidebar" id="app-sidebar">
         <div class="sidebar-header">
             <a href="{{ url_for('home') }}" class="sidebar-logo">
                 <img src="{{ settings.site_logo }}" alt="Logo" onerror="this.style.display='none'">
-                <div>
-                    <div class="sidebar-logo-text">{{ settings.site_title }}</div>
-                    <div class="sidebar-logo-subtitle">Intranet</div>
+                <div class="logo-meta">
+                    <span class="logo-text">{{ settings.site_title }}</span>
+                    <span class="logo-badge">ENTERPRISE</span>
                 </div>
             </a>
         </div>
 
         <nav class="sidebar-nav">
             {% if session.get('is_admin') %}
-            <!-- Admin Navigation -->
             <div class="nav-section">
-                <div class="nav-section-title">📂 Servidor de Arquivos</div>
-                <a href="{{ url_for('admin.dashboard') }}"
-                    class="nav-item {% if request.endpoint == 'admin.dashboard' %}active{% endif %}">
-                    <span class="nav-icon">{{ icon('dashboard') }}</span>
-                    <span>Dashboard Geral</span>
-                </a>
-                <a href="{{ url_for('admin.storage') }}"
-                    class="nav-item {% if request.endpoint == 'admin.storage' %}active{% endif %}">
-                    <span class="nav-icon">{{ icon('storage') }}</span>
-                    <span>Armazenamento</span>
-                </a>
-                <a href="{{ url_for('admin.shares') }}"
-                    class="nav-item {% if request.endpoint == 'admin.shares' %}active{% endif %}">
-                    <span class="nav-icon">{{ icon('folder') }}</span>
-                    <span>Compartilhamentos</span>
-                </a>
-                <a href="{{ url_for('admin.server_users') }}"
-                    class="nav-item {% if request.endpoint == 'admin.server_users' %}active{% endif %}">
-                    <span class="nav-icon">{{ icon('users') }}</span>
-                    <span>Usuários Servidor</span>
-                </a>
-                <a href="{{ url_for('admin.users_list') }}"
-                    class="nav-item {% if request.endpoint in ['admin.users_list', 'admin.users_new', 'admin.users_edit'] %}active{% endif %}">
-                    <span class="nav-icon">{{ icon('users') }}</span>
-                    <span>Usuários Intranet</span>
-                </a>
-                <a href="{{ url_for('admin.audit_logs') }}"
-                    class="nav-item {% if request.endpoint == 'admin.audit_logs' %}active{% endif %}">
-                    <span class="nav-icon">{{ icon('search') }}</span>
-                    <span>Auditoria de Arquivos</span>
-                </a>
-            </div>
-
-            <div class="nav-section">
-                <div class="nav-section-title">🌐 Controle de Internet</div>
+                <div class="nav-section-title">Monitoramento de Internet</div>
                 <a href="{{ url_for('admin.monitoring_dashboard') }}"
                     class="nav-item {% if request.endpoint == 'admin.monitoring_dashboard' %}active{% endif %}">
                     <span class="nav-icon">{{ icon('activity') }}</span>
@@ -78,182 +58,209 @@
                 </a>
                 <a href="{{ url_for('admin.monitoring_logs') }}"
                     class="nav-item {% if request.endpoint == 'admin.monitoring_logs' %}active{% endif %}">
-                    <span class="nav-icon">{{ icon('fileText') }}</span>
+                    <span class="nav-icon">{{ icon('list') }}</span>
                     <span>Logs de Acesso</span>
                 </a>
                 <a href="{{ url_for('admin.monitoring_devices') }}"
                     class="nav-item {% if request.endpoint == 'admin.monitoring_devices' %}active{% endif %}">
-                    <span class="nav-icon">{{ icon('monitor') }}</span>
-                    <span>Dispositivos Conhecidos</span>
+                    <span class="nav-icon">{{ icon('cpu') }}</span>
+                    <span>Inventário de Rede</span>
                 </a>
-                <a href="{{ url_for('admin.monitoring_sources') }}"
-                    class="nav-item {% if request.endpoint == 'admin.monitoring_sources' %}active{% endif %}">
-                    <span class="nav-icon">{{ icon('storage') }}</span>
-                    <span>Fontes de Dados</span>
+                <a href="{{ url_for('admin.monitoring_network_map') }}"
+                    class="nav-item {% if request.endpoint == 'admin.monitoring_network_map' %}active{% endif %}">
+                    <span class="nav-icon">{{ icon('layers') }}</span>
+                    <span>Mapa de Rede</span>
+                </a>
+                <a href="{{ url_for('admin.monitoring_report_productivity') }}"
+                    class="nav-item {% if request.endpoint == 'admin.monitoring_report_productivity' %}active{% endif %}">
+                    <span class="nav-icon">{{ icon('bar-chart') }}</span>
+                    <span>Produtividade</span>
                 </a>
             </div>
 
             <div class="nav-section">
-                <div class="nav-section-title">⚙️ Ajustes & Sistema</div>
+                <div class="nav-section-title">Monitoramento NAS</div>
+                <a href="{{ url_for('admin.dashboard') }}"
+                    class="nav-item {% if request.endpoint == 'admin.dashboard' %}active{% endif %}">
+                    <span class="nav-icon">{{ icon('dashboard') }}</span>
+                    <span>Visão Geral</span>
+                </a>
+                <a href="{{ url_for('admin.file_servers') }}"
+                    class="nav-item {% if request.endpoint in ['admin.file_servers', 'admin.file_server_new', 'admin.file_server_edit'] %}active{% endif %}">
+                    <span class="nav-icon">{{ icon('server') }}</span>
+                    <span>Servidores de Arquivos</span>
+                </a>
+            </div>
+
+            <div class="nav-section">
+                <div class="nav-section-title">Gestão ES-SERVIDOR</div>
+                <a href="{{ url_for('admin.users_list') }}"
+                    class="nav-item {% if request.endpoint in ['admin.users_list', 'admin.users_new', 'admin.users_edit'] %}active{% endif %}">
+                    <span class="nav-icon">{{ icon('users') }}</span>
+                    <span>Usuários</span>
+                </a>
+                <a href="{{ url_for('admin.shares') }}"
+                    class="nav-item {% if request.endpoint == 'admin.shares' %}active{% endif %}">
+                    <span class="nav-icon">{{ icon('folder') }}</span>
+                    <span>Compartilhamentos</span>
+                </a>
+                <a href="{{ url_for('admin.storage') }}"
+                    class="nav-item {% if request.endpoint == 'admin.storage' %}active{% endif %}">
+                    <span class="nav-icon">{{ icon('storage') }}</span>
+                    <span>Armazenamento</span>
+                </a>
+            </div>
+
+            <div class="nav-section">
+                <div class="nav-section-title">Sistema</div>
                 <a href="{{ url_for('admin.platform_settings') }}"
                     class="nav-item {% if request.endpoint == 'admin.platform_settings' %}active{% endif %}">
                     <span class="nav-icon">{{ icon('settings') }}</span>
-                    <span>Customização</span>
-                </a>
-                <a href="{{ url_for('admin.report_schedules') }}"
-                    class="nav-item {% if request.endpoint in ['admin.report_schedules', 'admin.reports_new'] %}active{% endif %}">
-                    <span class="nav-icon">{{ icon('calendar') }}</span>
-                    <span>Relatórios Agendados</span>
-                </a>
-                <a href="{{ url_for('admin.admins_list') }}"
-                    class="nav-item {% if request.endpoint in ['admin.admins_list', 'admin.admins_new', 'admin.admins_edit'] %}active{% endif %}">
-                    <span class="nav-icon">{{ icon('shield') }}</span>
-                    <span>Administradores</span>
-                </a>
-                <a href="{{ url_for('admin.smtp_settings') }}"
-                    class="nav-item {% if request.endpoint == 'admin.smtp_settings' %}active{% endif %}">
-                    <span class="nav-icon">{{ icon('mail') }}</span>
-                    <span>Servidor E-mail</span>
-                </a>
-                <a href="{{ url_for('admin.logs') }}"
-                    class="nav-item {% if request.endpoint == 'admin.logs' %}active{% endif %}">
-                    <span class="nav-icon">{{ icon('fileText') }}</span>
-                    <span>Logs do Sistema</span>
+                    <span>Configurações</span>
                 </a>
             </div>
-
             {% elif current_user.is_authenticated %}
-            <!-- User Navigation -->
             <div class="nav-section">
-                <div class="nav-section-title">Menu</div>
+                <div class="nav-section-title">Acesso Rápido</div>
                 <a href="{{ url_for('dashboard') }}"
                     class="nav-item {% if request.endpoint == 'dashboard' %}active{% endif %}">
                     <span class="nav-icon">{{ icon('folder') }}</span>
-                    <span>Meus Compartilhamentos</span>
+                    <span>Meus Arquivos</span>
                 </a>
             </div>
             {% endif %}
         </nav>
 
         <div class="sidebar-footer">
-            {% if session.get('is_admin') %}
-            <div class="sidebar-user">
-                <div class="sidebar-user-avatar">A</div>
-                <div class="sidebar-user-info">
-                    <div class="sidebar-user-name">{{ session.get('admin_name', 'Admin') }}</div>
-                    <div class="sidebar-user-role">Administrador</div>
+            <div class="user-pill-container">
+                <div class="user-pill">
+                    {% if session.get('is_admin') %}
+                    <span class="user-avatar" title="Administrador">A</span>
+                    <div class="user-details">
+                        <span class="user-name-small">{{ session.get('admin_name', 'Admin') }}</span>
+                    </div>
+                    {% elif current_user.is_authenticated %}
+                    <span class="user-avatar">{{ current_user.full_name[0] }}</span>
+                    <div class="user-details">
+                        <span class="user-name-small">{{ current_user.full_name }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <div class="footer-actions">
+                    <button id="theme-toggle" class="btn-icon-small" title="Mudar Tema">
+                        <span class="icon-sun">{{ icon('sun') }}</span>
+                        <span class="icon-moon">{{ icon('moon') }}</span>
+                    </button>
+
+                    {% if session.get('is_admin') %}
+                    <form action="{{ url_for('admin.logout') }}" method="POST">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="logout-btn-minimal" title="Sair do Sistema">{{ icon('logout')
+                            }}</button>
+                    </form>
+                    {% elif current_user.is_authenticated %}
+                    <form action="{{ url_for('do_logout') }}" method="POST">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="logout-btn-minimal" title="Sair do Sistema">{{ icon('logout')
+                            }}</button>
+                    </form>
+                    {% endif %}
                 </div>
             </div>
-            <form action="{{ url_for('admin.logout') }}" method="POST" style="margin-top: 12px;">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <button type="submit" class="btn btn-ghost btn-block btn-sm"
-                    style="justify-content: flex-start; color: var(--sidebar-text);">
-                    {{ icon('logout') }} Sair
-                </button>
-            </form>
-            {% elif current_user.is_authenticated %}
-            <div class="sidebar-user">
-                <div class="sidebar-user-avatar">{{ current_user.full_name[0] if current_user.full_name else 'U' }}
-                </div>
-                <div class="sidebar-user-info">
-                    <div class="sidebar-user-name">{{ current_user.full_name }}</div>
-                    <div class="sidebar-user-role">Usuário</div>
-                </div>
-            </div>
-            <form action="{{ url_for('do_logout') }}" method="POST" style="margin-top: 12px;">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <button type="submit" class="btn btn-ghost btn-block btn-sm"
-                    style="justify-content: flex-start; color: var(--sidebar-text);">
-                    {{ icon('logout') }} Sair
-                </button>
-            </form>
-            {% endif %}
         </div>
     </aside>
 
-    <!-- Sidebar Backdrop (mobile) -->
-    <div class="sidebar-backdrop" id="sidebar-backdrop" hidden></div>
+    <!-- Mobile Dock -->
+    <nav class="mobile-dock">
+        {% if session.get('is_admin') %}
+        <a href="{{ url_for('admin.dashboard') }}" class="dock-item">
+            {{ icon('dashboard') }}
+            <span>Home</span>
+        </a>
+        <a href="{{ url_for('admin.monitoring_dashboard') }}" class="dock-item">
+            {{ icon('activity') }}
+            <span>Internet</span>
+        </a>
+        <a href="{{ url_for('admin.storage') }}" class="dock-item">
+            {{ icon('storage') }}
+            <span>Storage</span>
+        </a>
+        {% else %}
+        <a href="{{ url_for('dashboard') }}" class="dock-item">
+            {{ icon('folder') }}
+            <span>Arquivos</span>
+        </a>
+        {% endif %}
+        <button id="theme-toggle-mobile" class="dock-item">
+            {{ icon('sun') }}
+        </button>
+    </nav>
 
-    <!-- Main Content Wrapper -->
     <div class="main-wrapper">
-        <!-- Topbar -->
-        <header class="topbar">
+        <header class="topbar-modern">
             <div class="topbar-left">
-                <button type="button" class="sidebar-toggle" aria-label="Abrir menu" aria-controls="app-sidebar"
-                    aria-expanded="false">
-                    <span class="sidebar-toggle-icon" aria-hidden="true">☰</span>
-                </button>
-                <div>
-                    <h1 class="topbar-title">{% block page_title %}Dashboard{% endblock %}</h1>
-                    {% block page_subtitle %}<p class="topbar-subtitle">Visão geral do sistema</p>{% endblock %}
+                <div class="page-meta">
+                    <h1 class="page-title">{% block page_title %}Página Inicial{% endblock %}</h1>
+                    <div class="server-status-badge" id="server-status">
+                        <span class="status-dot"></span>
+                        <span id="status-text">CARREGANDO</span>
+                    </div>
                 </div>
             </div>
             <div class="topbar-right">
-                <div class="topbar-actions">
-                    {% block page_actions %}{% endblock %}
-                </div>
-                <div id="server-status" class="topbar-status">
-                    <span class="status-dot"></span>
-                    <span id="status-text">Verificando...</span>
-                </div>
+                {% block page_actions %}{% endblock %}
             </div>
         </header>
 
-        <!-- Flash Messages -->
         {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
-        <div class="flash-container" style="padding: 24px 24px 0;">
+        <div class="flash-stack">
             {% for category, message in messages %}
-            <div class="alert alert-{{ category }}">
-                <span class="alert-icon">
-                    {% if category == 'success' %}✓{% elif category == 'error' %}✕{% elif category == 'warning' %}⚠{%
-                    else %}ℹ{% endif %}
-                </span>
-                <span class="alert-message">{{ message }}</span>
+            <div class="flash-toast flash-{{ category }}">
+                <p>{{ message }}</p>
             </div>
             {% endfor %}
         </div>
         {% endif %}
         {% endwith %}
 
-        <!-- Main Content -->
-        <main class="main-content">
+        <main class="content-area">
             {% block content %}{% endblock %}
         </main>
     </div>
     {% endblock %}
 
-    <!-- JavaScript -->
-    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
-
-    <!-- Server Status Check -->
     <script>
-        (function () {
+        const initTheme = () => {
+            const toggles = document.querySelectorAll('#theme-toggle, #theme-toggle-mobile');
+            toggles.forEach(btn => btn.addEventListener('click', () => {
+                const current = document.documentElement.getAttribute('data-theme');
+                const next = current === 'dark' ? 'light' : 'dark';
+                document.documentElement.setAttribute('data-theme', next);
+                localStorage.setItem('theme', next);
+            }));
+        };
+
+        const checkStatus = () => {
             const statusEl = document.getElementById('server-status');
             const textEl = document.getElementById('status-text');
-            if (!statusEl || !textEl) return;
-
-            fetch('/api/status')
-                .then(r => r.json())
-                .then(data => {
-                    if (data.monitoring_engine) {
-                        statusEl.classList.remove('offline');
-                        textEl.textContent = 'Monitoramento Online';
-                        if (!data.esservidor_connection) {
-                            textEl.title = 'Conexão ES-SERVIDOR falhou, mas Monitoramento OK';
-                        }
-                    } else {
-                        statusEl.classList.add('offline');
-                        textEl.textContent = 'Motor Offline';
-                    }
-                })
-                .catch(() => {
-                    statusEl.classList.add('offline');
-                    textEl.textContent = 'Erro API';
+            if (statusEl) {
+                fetch('/api/status').then(r => r.json()).then(data => {
+                    statusEl.classList.toggle('online', !!data.monitoring_engine);
+                    textEl.textContent = data.monitoring_engine ? 'ONLINE' : 'OFFLINE';
+                }).catch(() => {
+                    statusEl.classList.add('error');
+                    textEl.textContent = 'ERRO';
                 });
-        })();
-    </script>
+            }
+        };
 
+        document.addEventListener('DOMContentLoaded', () => {
+            initTheme();
+            checkStatus();
+        });
+    </script>
     {% block extra_scripts %}{% endblock %}
 </body>
 

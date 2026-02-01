@@ -27,6 +27,11 @@ class MonitoringEngine:
         self.device_info_cache = {}  # IP -> {'hostname': ..., 'mac': ...}
         self.last_sync_time = 0
         self.syslog_port = int(os.getenv('SYSLOG_PORT', '0') or 0)
+        self.log_batch = []
+        self.batch_lock = threading.Lock()
+        self.last_flush = time.time()
+        self.batch_size = 100
+        self.flush_interval = 5  # segundos
 
     def start(self):
         """Inicia o servidor Syslog em segundo plano"""
@@ -70,9 +75,34 @@ class MonitoringEngine:
                 msg = data.decode('utf-8', errors='ignore')
                 self._handle_syslog_msg(msg, addr[0])
             except socket.timeout:
+                # Flush buffer periodicamente mesmo sem novas mensagens
+                if time.time() - self.last_flush > self.flush_interval:
+                    self._flush_batch()
                 continue
             except Exception as e:
                 self.logger.error(f"Erro no processamento Syslog: {e}")
+
+    def _flush_batch(self):
+        """Salva o lote de logs no banco de dados de uma só vez"""
+        with self.batch_lock:
+            if not self.log_batch:
+                self.last_flush = time.time()
+                return
+
+            batch_to_save = self.log_batch
+            self.log_batch = []
+            self.last_flush = time.time()
+
+        with self.app.app_context():
+            try:
+                for log_data in batch_to_save:
+                    new_log = InternetAccessLog(**log_data)
+                    db.session.add(new_log)
+                db.session.commit()
+                # self.logger.info(f"📦 Lote de {len(batch_to_save)} logs salvo com sucesso.")
+            except Exception as e:
+                db.session.rollback()
+                self.logger.error(f"❌ Erro ao salvar lote de logs: {e}")
 
     def _sync_device_info(self):
         """Sincroniza informações de dispositivos (DHCP/ARP, Banco Local e Dispositivos Conhecidos)"""
@@ -183,41 +213,64 @@ class MonitoringEngine:
                         except:
                             hostname = None
                     
-                    new_log = InternetAccessLog(
-                        source_id=source_id,
-                        ip_address=ip,
-                        mac_address=mac,
-                        hostname=hostname,
-                        website=log_entry['website'],
-                        full_url=log_entry.get('full_url'),
-                        action=log_entry.get('action', 'allowed'),
-                        duration=log_entry.get('duration', 0)
-                    )
-                    db.session.add(new_log)
-                    db.session.commit()
+                    # Adiciona ao lote em vez de salvar imediatamente
+                    with self.batch_lock:
+                        self.log_batch.append({
+                            'source_id': source_id,
+                            'ip_address': ip,
+                            'mac_address': mac,
+                            'hostname': hostname,
+                            'website': log_entry['website'],
+                            'full_url': log_entry.get('full_url'),
+                            'action': log_entry.get('action', 'allowed'),
+                            'duration': log_entry.get('duration', 0)
+                        })
+                        
+                        # Se atingir o tamanho do lote, processa imediatamente
+                        if len(self.log_batch) >= self.batch_size:
+                            # Dispara flush em thread separada ou processa aqui?
+                            # Como estamos na thread de recepção, vamos processar aqui para garantir ordem,
+                            # mas isso pode causar perda de pacotes UDP se o commit for lento.
+                            # Para 4 cores, um commit de 100 registros é rápido.
+                            pass # O loop principal vai cuidar do flush via timeout ou tamanho
+                    
+                    if len(self.log_batch) >= self.batch_size:
+                        self._flush_batch()
+
                 except Exception as e:
-                    db.session.rollback()
-                    self.logger.error(f"Erro ao salvar log de acesso: {e}")
+                    self.logger.error(f"Erro ao preparar log de acesso: {e}")
 
     def _parse_squid(self, msg):
-        """Parser básico para logs do Squid"""
-        # Ex: 192.168.1.50 TCP_MISS/200 1234 GET http://example.com/
-        parts = msg.split()
+        """Parser aprimorado para logs do Squid"""
         try:
-            # Procura pelo IP na mensagem (Regex sem grupos de captura para evitar retornos parciais)
+            # Tenta dividir por espaços e limpar partes vazias
+            parts = [p for p in msg.split() if p]
+            
+            # Formato nativo costuma ter: timestamp duration client_ip status/code size ...
+            # Tentamos encontrar o IP e a URL primeiro
             ip_match = re.search(r'(?:\d{1,3}\.){3}\d{1,3}', msg)
             if not ip_match: return None
-            
             ip = ip_match.group()
-            
-            # Tenta pegar a URL (geralmente começa com http)
+
             url_match = re.search(r'https?://[^\s?]+', msg)
-            if url_match:
-                full_url = url_match.group()
-                parts = full_url.split('/')
-                if len(parts) > 2:
-                    website = parts[2] # Pega o domínio
-                    return {'ip_address': ip, 'website': website, 'full_url': full_url}
+            if not url_match: return None
+            full_url = url_match.group()
+            
+            website = full_url.split('/')[2] if '/' in full_url else full_url
+
+            # Tenta extrair a duração (geralmente o segundo campo se for log puro do squid)
+            # Ou procura por um número logo após o timestamp (formato: 123456789.123 150 IP)
+            duration = 0
+            time_dur_match = re.search(r'\d+\.\d+\s+(\d+)\s+', msg)
+            if time_dur_match:
+                duration = int(time_dur_match.group(1)) / 1000.0 # Converte ms para segundos
+            
+            return {
+                'ip_address': ip, 
+                'website': website, 
+                'full_url': full_url,
+                'duration': int(duration)
+            }
         except:
             pass
         return None

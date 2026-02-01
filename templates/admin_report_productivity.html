@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block title %}Relatório de Produtividade - {{ super() }}{% endblock %}
+
+{% block content %}
+<div class="content-header">
+    <div>
+        <h1 class="content-title">Relatório de Produtividade</h1>
+        <p class="content-subtitle">Uso da internet correlacionado por identidade de usuário (Agente).</p>
+    </div>
+    <div class="header-actions">
+        <form class="flex gap-2 items-center">
+            <label class="text-sm text-muted">Período:</label>
+            <select name="days" class="form-select form-select-sm" onchange="this.form.submit()">
+                <option value="1" {% if days==1 %}selected{% endif %}>Últimas 24h</option>
+                <option value="7" {% if days==7 %}selected{% endif %}>Últimos 7 dias</option>
+                <option value="30" {% if days==30 %}selected{% endif %}>Últimos 30 dias</option>
+            </select>
+        </form>
+    </div>
+</div>
+
+<div class="dashboard-grid">
+    {% for user in users %}
+    <div class="card card-hud">
+        <div class="card-header border-b">
+            <div class="flex justify-between items-center w-full">
+                <div>
+                    <h3 class="card-title" style="color: var(--accent);">👤 {{ user.name }}</h3>
+                    <p class="text-xs text-muted">{{ user.device_name }}</p>
+                </div>
+                <div class="text-right">
+                    <div class="font-bold">{{ user.total_hits }} hits</div>
+                    <div class="text-xs opacity-50">{{ (user.total_sec / 60)|round|int }} min de uso</div>
+                </div>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th class="pl-4">Website</th>
+                        <th class="text-right pr-4">Hits</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for site in user.sites[:10] %}
+                    <tr>
+                        <td class="pl-4">
+                            <span class="text-sm">{{ site.domain }}</span>
+                            {% if 'youtube' in site.domain or 'facebook' in site.domain or 'instagram' in site.domain or
+                            'netflix' in site.domain %}
+                            <span class="badge badge-warning badge-xs ml-1">ENTRETENIMENTO</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-right pr-4 font-mono">{{ site.hits }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% else %}
+    <div class="col-span-full py-20 text-center text-muted">
+        <div class="text-6xl mb-4">📉</div>
+        <p>Dados insuficientes para gerar o relatório no período selecionado.</p>
+    </div>
+    {% endfor %}
+</div>
+
+<style>
+    .card-hud {
+        border-left: 4px solid var(--accent);
+        transition: all 0.2s;
+    }
+
+    .card-hud:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+    }
+
+    .badge-xs {
+        font-size: 0.6rem;
+        padding: 1px 4px;
+    }
+</style>
+{% endblock %}
