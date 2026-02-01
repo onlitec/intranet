@@ -1683,6 +1683,7 @@ def monitoring_network_map():
 def monitoring_report_productivity():
     """Relatório de produtividade correlacionando Agente + Logs"""
     from models import InternetAccessLog, KnownDevice
+    from ai_service import AIService
     from sqlalchemy import func
     admin = get_current_admin()
     
@@ -1718,17 +1719,55 @@ def monitoring_report_productivity():
                 'name': user_name,
                 'device_name': device.hostname if device else '?',
                 'sites': [],
+                'categories': {},  # Novo: Agregado por categoria
                 'total_hits': 0,
-                'total_sec': 0
+                'total_sec': 0,
+                'productivity_score': 0,
+                'ai_insight': ""
             }
+        
+        # Obter insight do domínio para categorização
+        insight = AIService.get_domain_insight(site)
+        category = insight.category if insight else "Outros"
+        is_productive = insight.is_productive if insight else False
+        icon = insight.icon if insight else "🌐"
+        
+        # Atualizar estatísticas de categoria
+        if category not in user_report[user_name]['categories']:
+            user_report[user_name]['categories'][category] = {
+                'name': category,
+                'hits': 0,
+                'duration': 0,
+                'icon': icon,
+                'is_productive': is_productive
+            }
+        
+        user_report[user_name]['categories'][category]['hits'] += hits
+        user_report[user_name]['categories'][category]['duration'] += (duration or 0)
         
         user_report[user_name]['sites'].append({
             'domain': site,
             'hits': hits,
-            'duration': duration or 0
+            'duration': duration or 0,
+            'category': category,
+            'icon': icon,
+            'is_productive': is_productive
         })
         user_report[user_name]['total_hits'] += hits
         user_report[user_name]['total_sec'] += (duration or 0)
+
+    # Calcular Scores e Métas de IA
+    for user_name, data in user_report.items():
+        # Cálculo de Score: (Hits Produtivos / Total Hits) * 100
+        productive_hits = sum(cat['hits'] for cat in data['categories'].values() if cat['is_productive'])
+        if data['total_hits'] > 0:
+            data['productivity_score'] = int((productive_hits / data['total_hits']) * 100)
+        
+        # Gerar insight da IA
+        data['ai_insight'] = AIService.generate_user_productivity_insight(data['categories'])
+        
+        # Converter categorias para lista para o template
+        data['categories_list'] = sorted(data['categories'].values(), key=lambda x: x['hits'], reverse=True)
 
     # Ordenar por usuários mais ativos
     sorted_users = sorted(user_report.values(), key=lambda x: x['total_hits'], reverse=True)

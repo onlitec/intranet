@@ -323,6 +323,7 @@ class DomainCategorization(db.Model):
     description = db.Column(db.Text)      # Explicação amigável do que é o domínio
     friendly_name = db.Column(db.String(100)) # Noma amigável (ex: Windows Update, Netflix)
     icon = db.Column(db.String(20))       # Emoji ou ícone sugerido
+    is_productive = db.Column(db.Boolean, default=True) # Se o acesso é considerado produtivo
     last_analyzed = db.Column(db.DateTime, default=datetime.utcnow)
 
     def __repr__(self):
