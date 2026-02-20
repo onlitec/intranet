@@ -1391,7 +1391,7 @@ def monitoring_dashboard():
         from sqlalchemy import func
         
         hourly_counts = db.session.query(
-            func.strftime('%H:00', InternetAccessLog.timestamp).label('hour'),
+            func.to_char(InternetAccessLog.timestamp, 'HH24:00').label('hour'),
             func.count(InternetAccessLog.id).label('count')
         ).filter(
             InternetAccessLog.timestamp >= last_24h
@@ -1909,7 +1909,7 @@ def monitoring_productivity_device_details(device_mac):
     if period_type == 'daily':
         # Agrupar por hora
         time_query = db.session.query(
-            func.strftime('%H:00', InternetAccessLog.timestamp).label('time_label'),
+            func.to_char(InternetAccessLog.timestamp, 'HH24:00').label('time_label'),
             func.count(InternetAccessLog.id).label('count')
         ).filter(
             InternetAccessLog.mac_address == device_mac,

@@ -344,11 +344,11 @@ def api_status():
     engine_active = False
     try:
         res = subprocess.run(
-            ['/usr/bin/systemctl', 'is-active', 'intranet-engine.service'],
+            ['supervisorctl', 'status', 'monitoring_engine'],
             capture_output=True,
             text=True
         )
-        engine_active = res.stdout.strip() == 'active'
+        engine_active = 'RUNNING' in res.stdout
     except Exception as e:
         current_app.logger.error(f"Erro ao verificar intranet-engine: {e}")
 
