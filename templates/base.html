@@ -138,6 +138,11 @@
                     <span class="nav-icon">{{ icon('settings') }}</span>
                     <span>Configurações</span>
                 </a>
+                <a href="{{ url_for('admin.router_settings') }}"
+                    class="nav-item {% if request.endpoint == 'admin.router_settings' %}active{% endif %}">
+                    <span class="nav-icon">🔌</span>
+                    <span>Roteadores & APIs</span>
+                </a>
             </div>
             {% elif current_user.is_authenticated %}
             <div class="nav-section">

@@ -478,3 +478,38 @@ class FileServer(db.Model):
     def __repr__(self):
         return f'<FileServer {self.name} ({self.server_type})>'
 
+
+class RouterIntegration(db.Model):
+    """Integrações com Roteadores via API (MikroTik, Fortinet, etc)"""
+    __tablename__ = 'router_integrations'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    vendor = db.Column(db.String(30), nullable=False) # mikrotik, fortinet, pfsense, etc
+    host = db.Column(db.String(255), nullable=False) # IP ou URL da interface de gerência
+    port = db.Column(db.Integer)
+    username = db.Column(db.String(100))
+    password_encrypted = db.Column(db.Text)
+    api_token_encrypted = db.Column(db.Text)
+    is_active = db.Column(db.Boolean, default=True)
+    last_sync = db.Column(db.DateTime)
+    status = db.Column(db.String(20), default='unknown') # online, offline, error
+    status_message = db.Column(db.Text)
+    
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def get_icon(self):
+        """Retorna ícone baseado no fornecedor/vendor"""
+        icons = {
+            'mikrotik': '📡',
+            'fortinet': '🛡️',
+            'pfsense': '🔥',
+            'cisco': '🌐',
+            'generic': '🔌'
+        }
+        return icons.get(self.vendor, '🔌')
+        
+    def __repr__(self):
+        return f'<RouterIntegration {self.name} ({self.vendor})>'
+

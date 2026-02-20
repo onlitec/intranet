@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+
+{% block title %}{{ 'Editar' if router else 'Nova' }} Integração de Roteador{% endblock %}
+
+{% block body %}
+<div class="row mb-4">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('admin.platform_settings') }}">Configurações da
+                        Plataforma</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('admin.router_settings') }}">Integração de
+                        Roteadores</a></li>
+                <li class="breadcrumb-item active" aria-current="page">{{ 'Editar' if router else 'Nova' }} Integração
+                </li>
+            </ol>
+        </nav>
+        <h2>{{ 'Editar' if router else 'Nova' }} Integração de Roteador</h2>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-8 mx-auto">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">Dados da Integração</h3>
+            </div>
+            <div class="card-body">
+                <form method="POST"
+                    action="{{ url_for('admin.router_settings_edit', router_id=router.id) if router else url_for('admin.router_settings_new') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            <label for="name" class="form-label required">Nome da Integração</label>
+                            <input type="text" class="form-control" id="name" name="name"
+                                value="{{ router.name if router else '' }}" required placeholder="Ex: Matriz - Borda">
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label for="vendor" class="form-label required">Vendor / Fabricante</label>
+                            <select class="form-control" id="vendor" name="vendor" required>
+                                <option value="mikrotik" {% if router and router.vendor=='mikrotik' %}selected{% endif
+                                    %}>MikroTik (RouterOS)</option>
+                                <option value="fortinet" {% if router and router.vendor=='fortinet' %}selected{% endif
+                                    %}>Fortinet (FortiOS)</option>
+                                <option value="pfsense" {% if router and router.vendor=='pfsense' %}selected{% endif %}>
+                                    pfSense</option>
+                                <option value="cisco" {% if router and router.vendor=='cisco' %}selected{% endif %}>
+                                    Cisco</option>
+                                <option value="generic" {% if router and router.vendor=='generic' %}selected{% endif %}>
+                                    Outro (Genérico)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group col-md-8">
+                            <label for="host" class="form-label required">Host (IP ou URL)</label>
+                            <input type="text" class="form-control" id="host" name="host"
+                                value="{{ router.host if router else '' }}" required
+                                placeholder="Ex: 192.168.0.1 ou https://firewall.local">
+                        </div>
+                        <div class="form-group col-md-4">
+                            <label for="port" class="form-label">Porta da API (Opcional)</label>
+                            <input type="number" class="form-control" id="port" name="port"
+                                value="{{ router.port if router and router.port else '' }}" placeholder="Padrão">
+                        </div>
+                    </div>
+
+                    <h4 class="mt-4 mb-3"
+                        style="font-size: 16px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">
+                        Credenciais de Acesso</h4>
+                    <div class="alert alert-info">
+                        <strong>Dica de Segurança:</strong> Recomendamos criar um usuário dedicado no roteador
+                        exclusivamente para a leitura de API (somente leitura), ao invés de usar a conta admin
+                        principal.
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group col-md-12">
+                            <label for="username" class="form-label">Usuário</label>
+                            <input type="text" class="form-control" id="username" name="username"
+                                value="{{ router.username if router else '' }}" placeholder="Ex: api_reader">
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            <label for="password" class="form-label">Senha</label>
+                            <input type="password" class="form-control" id="password" name="password"
+                                placeholder="{{ 'Deixe em branco para manter a atual' if router else 'Senha do usuário' }}">
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label for="api_token" class="form-label">Token de API (Alternativo)</label>
+                            <input type="password" class="form-control" id="api_token" name="api_token"
+                                placeholder="{{ 'Preenchido' if router and router.api_token_encrypted else 'Token (se aplicável)' }}">
+                        </div>
+                    </div>
+
+                    {% if router %}
+                    <div class="form-group mt-3">
+                        <div class="custom-control custom-switch">
+                            <input type="checkbox" class="custom-control-input" id="is_active" name="is_active" {% if
+                                router.is_active %}checked{% endif %}>
+                            <label class="custom-control-label" for="is_active">Integração Ativa (Permitir
+                                sincronização)</label>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <div class="form-group mt-4 text-right">
+                        <a href="{{ url_for('admin.router_settings') }}" class="btn btn-secondary mr-2">Cancelar</a>
+                        <button type="submit" class="btn btn-primary">💾 Salvar Integração</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

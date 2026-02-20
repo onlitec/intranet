@@ -1364,6 +1364,98 @@ def platform_settings():
     return render_template('admin_platform.html', admin=admin, settings=settings)
 
 
+# ==================== INTEGRAÇÃO ROTEADORES ====================
+
+@admin_bp.route('/settings/routers')
+@admin_required
+def router_settings():
+    """Lista as integrações de roteadores."""
+    from models import RouterIntegration
+    admin = get_current_admin()
+    routers = RouterIntegration.query.all()
+    return render_template('admin_routers.html', admin=admin, routers=routers)
+
+@admin_bp.route('/settings/routers/new', methods=['GET', 'POST'])
+@admin_required
+def router_settings_new():
+    """Adiciona um novo roteador."""
+    from models import RouterIntegration
+    from database import encrypt_api_key
+    admin = get_current_admin()
+    
+    if request.method == 'POST':
+        name = request.form.get('name', '').strip()
+        vendor = request.form.get('vendor', 'mikrotik')
+        host = request.form.get('host', '').strip()
+        port = request.form.get('port')
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '')
+        api_token = request.form.get('api_token', '')
+        
+        router = RouterIntegration(
+            name=name,
+            vendor=vendor,
+            host=host,
+            port=int(port) if port else None,
+            username=username
+        )
+        
+        if password:
+            router.password_encrypted = encrypt_api_key(password)
+        if api_token:
+            router.api_token_encrypted = encrypt_api_key(api_token)
+            
+        db.session.add(router)
+        db.session.commit()
+        flash(f'Integração com {name} criada.', 'success')
+        return redirect(url_for('admin.router_settings'))
+        
+    return render_template('admin_router_form.html', admin=admin, router=None)
+    
+@admin_bp.route('/settings/routers/<int:router_id>/edit', methods=['GET', 'POST'])
+@admin_required
+def router_settings_edit(router_id):
+    """Edita um roteador."""
+    from models import RouterIntegration
+    from database import encrypt_api_key
+    admin = get_current_admin()
+    router = RouterIntegration.query.get_or_404(router_id)
+    
+    if request.method == 'POST':
+        router.name = request.form.get('name', '').strip()
+        router.vendor = request.form.get('vendor', 'mikrotik')
+        router.host = request.form.get('host', '').strip()
+        port = request.form.get('port')
+        router.port = int(port) if port else None
+        router.username = request.form.get('username', '').strip()
+        router.is_active = request.form.get('is_active') == 'on'
+        
+        password = request.form.get('password', '')
+        api_token = request.form.get('api_token', '')
+        
+        if password:
+            router.password_encrypted = encrypt_api_key(password)
+        if api_token:
+            router.api_token_encrypted = encrypt_api_key(api_token)
+            
+        db.session.commit()
+        flash(f'Integração {router.name} atualizada.', 'success')
+        return redirect(url_for('admin.router_settings'))
+        
+    return render_template('admin_router_form.html', admin=admin, router=router)
+
+@admin_bp.route('/settings/routers/<int:router_id>/delete', methods=['POST'])
+@admin_required
+def router_settings_delete(router_id):
+    from models import RouterIntegration
+    admin = get_current_admin()
+    router = RouterIntegration.query.get_or_404(router_id)
+    db.session.delete(router)
+    db.session.commit()
+    flash(f'Integração {router.name} removida.', 'success')
+    return redirect(url_for('admin.router_settings'))
+
+
 # ==================== MONITORAMENTO DE INTERNET ====================
 
 @admin_bp.route('/monitoring')

@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block title %}Configurações da Plataforma - Roteadores{% endblock %}
+
+{% block body %}
+<div class="row mb-4">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('admin.platform_settings') }}">Configurações da Plataforma</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Integração de Roteadores</li>
+            </ol>
+        </nav>
+        <h2>Configurações da Plataforma - Integração de Roteadores <span class="badge badge-info text-sm ml-2">BETA</span></h2>
+        <p class="text-muted">Gerencie a conexão da intranet com roteadores e firewalls da sua rede local.</p>
+    </div>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    <div class="row mb-4">
+        <div class="col-12">
+        {% for category, message in messages %}
+          <div class="alert alert-{{ category }}">
+              {{ message }}
+          </div>
+        {% endfor %}
+        </div>
+    </div>
+  {% endif %}
+{% endwith %}
+
+<div class="row">
+    <div class="col-lg-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center flex-wrap">
+                <h3 class="card-title">🔌 Roteadores Integrados</h3>
+                <button type="button" class="btn btn-primary" onclick="window.location.href='{{ url_for('admin.router_settings_new') }}'">
+                    ➕ Nova Integração
+                </button>
+            </div>
+            <div class="card-body">
+                {% if routers %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Nome</th>
+                                <th>Vendor</th>
+                                <th>Host / IP</th>
+                                <th>Status</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for router in routers %}
+                            <tr>
+                                <td>
+                                    <strong>{{ router.get_icon() }} {{ router.name }}</strong>
+                                </td>
+                                <td><span class="badge badge-secondary">{{ router.vendor|capitalize }}</span></td>
+                                <td><code>{{ router.host }}</code></td>
+                                <td>
+                                    {% if router.status == 'online' %}
+                                    <span class="badge badge-success">Online</span>
+                                    {% elif router.status == 'offline' %}
+                                    <span class="badge badge-danger">Offline</span>
+                                    {% elif router.status == 'error' %}
+                                    <span class="badge badge-warning">Erro</span>
+                                    {% else %}
+                                    <span class="badge badge-light">Pendente</span>
+                                    {% endif %}
+                                    {% if router.status_message %}
+                                    <small class="d-block text-muted mt-1">{{ router.status_message|truncate(30) }}</small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="button-group-sm">
+                                        <button class="btn btn-sm btn-info" onclick="window.location.href='{{ url_for('admin.router_settings_edit', router_id=router.id) }}'">✏️ Editar</button>
+                                        <form action="{{ url_for('admin.router_settings_delete', router_id=router.id) }}" method="POST" class="d-inline" onsubmit="return confirm('Tem certeza que deseja remover esta integração?');">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                            <button type="submit" class="btn btn-sm btn-outline-danger">🗑️ Excluir</button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="empty-state text-center p-5">
+                    <div style="font-size: 48px; margin-bottom: 20px;">📡</div>
+                    <h4>Nenhuma integração cadastrada</h4>
+                    <p class="text-muted">Adicione seu MikroTik, Fortinet ou outro roteador para facilitar a gestão da rede.</p>
+                    <button class="btn btn-primary mt-3" onclick="window.location.href='{{ url_for('admin.router_settings_new') }}'">Adicionar Roteador</button>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
