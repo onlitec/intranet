@@ -1455,6 +1455,42 @@ def router_settings_delete(router_id):
     flash(f'Integração {router.name} removida.', 'success')
     return redirect(url_for('admin.router_settings'))
 
+@admin_bp.route('/settings/routers/<int:router_id>/test', methods=['POST'])
+@admin_required
+def router_settings_test(router_id):
+    """Testa a conexão básica via socket com o roteador."""
+    from models import RouterIntegration
+    import socket
+    
+    router = RouterIntegration.query.get_or_404(router_id)
+    
+    host = router.host
+    port = router.port
+    if not port:
+        if router.vendor == 'mikrotik':
+            port = 8728
+        elif router.vendor == 'fortinet':
+            port = 443
+        else:
+            port = 80
+            
+    try:
+        sock = socket.create_connection((host, port), timeout=3)
+        sock.close()
+        
+        router.status = 'online'
+        router.status_message = f"Conexão TCP bem-sucedida (IP {host}:{port})."
+        router.last_sync = datetime.utcnow()
+        db.session.commit()
+        
+        return jsonify({'success': True, 'message': router.status_message})
+    except Exception as e:
+        router.status = 'error'
+        router.status_message = f"Erro de conexão (IP {host}:{port}): {str(e)}"
+        db.session.commit()
+        
+        return jsonify({'success': False, 'message': router.status_message})
+
 
 # ==================== MONITORAMENTO DE INTERNET ====================
 

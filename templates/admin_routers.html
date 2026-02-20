@@ -7,27 +7,29 @@
     <div class="col-12">
         <nav aria-label="breadcrumb">
             <ol class="breadcrumb">
-                <li class="breadcrumb-item"><a href="{{ url_for('admin.platform_settings') }}">Configurações da Plataforma</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('admin.platform_settings') }}">Configurações da
+                        Plataforma</a></li>
                 <li class="breadcrumb-item active" aria-current="page">Integração de Roteadores</li>
             </ol>
         </nav>
-        <h2>Configurações da Plataforma - Integração de Roteadores <span class="badge badge-info text-sm ml-2">BETA</span></h2>
+        <h2>Configurações da Plataforma - Integração de Roteadores <span
+                class="badge badge-info text-sm ml-2">BETA</span></h2>
         <p class="text-muted">Gerencie a conexão da intranet com roteadores e firewalls da sua rede local.</p>
     </div>
 </div>
 
 {% with messages = get_flashed_messages(with_categories=true) %}
-  {% if messages %}
-    <div class="row mb-4">
-        <div class="col-12">
+{% if messages %}
+<div class="row mb-4">
+    <div class="col-12">
         {% for category, message in messages %}
-          <div class="alert alert-{{ category }}">
-              {{ message }}
-          </div>
-        {% endfor %}
+        <div class="alert alert-{{ category }}">
+            {{ message }}
         </div>
+        {% endfor %}
     </div>
-  {% endif %}
+</div>
+{% endif %}
 {% endwith %}
 
 <div class="row">
@@ -35,7 +37,8 @@
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center flex-wrap">
                 <h3 class="card-title">🔌 Roteadores Integrados</h3>
-                <button type="button" class="btn btn-primary" onclick="window.location.href='{{ url_for('admin.router_settings_new') }}'">
+                <button type="button" class="btn btn-primary"
+                    onclick="window.location.href='{{ url_for('admin.router_settings_new') }}'">
                     ➕ Nova Integração
                 </button>
             </div>
@@ -71,15 +74,25 @@
                                     <span class="badge badge-light">Pendente</span>
                                     {% endif %}
                                     {% if router.status_message %}
-                                    <small class="d-block text-muted mt-1">{{ router.status_message|truncate(30) }}</small>
+                                    <small class="d-block text-muted mt-1">{{ router.status_message|truncate(30)
+                                        }}</small>
                                     {% endif %}
                                 </td>
                                 <td>
                                     <div class="button-group-sm">
-                                        <button class="btn btn-sm btn-info" onclick="window.location.href='{{ url_for('admin.router_settings_edit', router_id=router.id) }}'">✏️ Editar</button>
-                                        <form action="{{ url_for('admin.router_settings_delete', router_id=router.id) }}" method="POST" class="d-inline" onsubmit="return confirm('Tem certeza que deseja remover esta integração?');">
-                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                                            <button type="submit" class="btn btn-sm btn-outline-danger">🗑️ Excluir</button>
+                                        <button class="btn btn-sm btn-outline-success"
+                                            onclick="testRouterConnection({{ router.id }})"
+                                            id="btn-test-{{ router.id }}">🔄 Testar</button>
+                                        <button class="btn btn-sm btn-info"
+                                            onclick="window.location.href='{{ url_for('admin.router_settings_edit', router_id=router.id) }}'">✏️
+                                            Editar</button>
+                                        <form
+                                            action="{{ url_for('admin.router_settings_delete', router_id=router.id) }}"
+                                            method="POST" class="d-inline"
+                                            onsubmit="return confirm('Tem certeza que deseja remover esta integração?');">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                                            <button type="submit" class="btn btn-sm btn-outline-danger">🗑️
+                                                Excluir</button>
                                         </form>
                                     </div>
                                 </td>
@@ -92,12 +105,49 @@
                 <div class="empty-state text-center p-5">
                     <div style="font-size: 48px; margin-bottom: 20px;">📡</div>
                     <h4>Nenhuma integração cadastrada</h4>
-                    <p class="text-muted">Adicione seu MikroTik, Fortinet ou outro roteador para facilitar a gestão da rede.</p>
-                    <button class="btn btn-primary mt-3" onclick="window.location.href='{{ url_for('admin.router_settings_new') }}'">Adicionar Roteador</button>
+                    <p class="text-muted">Adicione seu MikroTik, Fortinet ou outro roteador para facilitar a gestão da
+                        rede.</p>
+                    <button class="btn btn-primary mt-3"
+                        onclick="window.location.href='{{ url_for('admin.router_settings_new') }}'">Adicionar
+                        Roteador</button>
                 </div>
                 {% endif %}
             </div>
         </div>
     </div>
 </div>
+
+<script>
+    function testRouterConnection(routerId) {
+        const btn = document.getElementById('btn-test-' + routerId);
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '⏳ Testando...';
+        btn.disabled = true;
+
+        fetch(`{{ url_for('admin.router_settings') }}/${routerId}/test`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token() }}',
+                'Content-Type': 'application/json'
+            }
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('✅ SUCESSO: ' + data.message);
+                    window.location.reload();
+                } else {
+                    alert('❌ ERRO: ' + data.message);
+                    window.location.reload();
+                }
+            })
+            .catch(error => {
+                alert('❌ Erro na requisição: ' + error);
+            })
+            .finally(() => {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            });
+    }
+</script>
 {% endblock %}
