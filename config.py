@@ -26,7 +26,7 @@ TIMEZONE_OFFSET = int(os.getenv('TIMEZONE_OFFSET', '-3'))  # Horário de Brasíl
 
 # Configurações de Sessão
 SESSION_TIMEOUT = 28800  # 8 horas em segundos
-SESSION_COOKIE_SECURE = FLASK_ENV == 'production'  # HTTPS apenas em produção
+SESSION_COOKIE_SECURE = os.getenv('SESSION_COOKIE_SECURE', 'false').lower() == 'true'  # HTTPS apenas se configurado
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = 'Lax'
 
