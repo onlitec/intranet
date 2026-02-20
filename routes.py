@@ -353,12 +353,14 @@ def api_status():
         current_app.logger.error(f"Erro ao verificar intranet-engine: {e}")
 
     active_sources = InternetSource.query.filter_by(is_active=True).count()
+    from models import RouterIntegration
+    active_routers = RouterIntegration.query.filter_by(is_active=True).count()
 
     status = {
         'status': 'ok' if (esservidor_connected and engine_active) else 'degraded',
         'esservidor_connection': esservidor_connected,
         'monitoring_engine': engine_active,
-        'active_sources': active_sources,
+        'active_sources': active_sources + active_routers,
         'timestamp': datetime.now().isoformat()
     }
 

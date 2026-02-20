@@ -9,7 +9,7 @@ Exemplos:
 
 from flask_migrate import Migrate
 
-from models import db
+from models import db, RouterIntegration
 from wsgi import app
 
 migrate = Migrate(app, db)

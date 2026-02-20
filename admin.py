@@ -1560,9 +1560,12 @@ def monitoring_dashboard():
         cat_labels = [c[0].capitalize() for c in category_data]
         cat_counts = [c[1] for c in category_data]
 
+        from models import RouterIntegration
+        active_routers = RouterIntegration.query.filter_by(is_active=True).count()
+        
         stats = {
             'total_requests_today': InternetAccessLog.query.filter(InternetAccessLog.timestamp >= today).count(),
-            'active_sources': InternetSource.query.filter_by(is_active=True).count(),
+            'active_sources': InternetSource.query.filter_by(is_active=True).count() + active_routers,
             'known_vs_unknown': [known_count, unknown_count],
             'category_labels': cat_labels,
             'category_data': cat_counts,

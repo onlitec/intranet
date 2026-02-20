@@ -4,7 +4,7 @@ import logging
 import re
 import time
 from datetime import datetime
-from models import db, InternetAccessLog, InternetSource, ESSERVIDORUser, KnownDevice
+from models import db, InternetAccessLog, InternetSource, ESSERVIDORUser, KnownDevice, RouterIntegration
 import os
 import routeros_api
 from core.services.security import decrypt_credential
@@ -158,6 +158,44 @@ class MonitoringEngine:
                         adapter.disconnect()
                 except Exception as e:
                     self.logger.error(f"Erro ao sincronizar dispositivos MikroTik ({src.host}): {e}")
+                    
+            # 4. Sincroniza do RouterIntegration (Novo modelo)
+            routers = RouterIntegration.query.filter_by(vendor='mikrotik', is_active=True).all()
+            for router in routers:
+                try:
+                    password = decrypt_credential(router.password_encrypted) if router.password_encrypted else ''
+                    adapter = MikroTikAdapter({
+                        'host': router.host,
+                        'username': router.username,
+                        'password': password,
+                        'port': router.port
+                    })
+                    
+                    if adapter.connect():
+                        devices = adapter.get_devices()
+                        for d in devices:
+                            ip = d.get('ip')
+                            if ip:
+                                if ip not in self.device_info_cache:
+                                    self.device_info_cache[ip] = {}
+                                
+                                # Prioriza hostname do DHCP se não tiver vindo do local
+                                if d.get('hostname') != 'Unknown' and not self.device_info_cache[ip].get('hostname'):
+                                    self.device_info_cache[ip]['hostname'] = d.get('hostname')
+                                
+                                mac = d.get('mac')
+                                if mac:
+                                    mac = mac.upper()
+                                    self.device_info_cache[ip]['mac'] = mac
+                                    
+                                    # Processa Dispositivos conhecidos
+                                    if mac in mac_to_info:
+                                        self.device_info_cache[ip]['hostname'] = mac_to_info[mac]['hostname']
+                                        self.device_info_cache[ip]['category'] = mac_to_info[mac]['category']
+                        
+                        adapter.disconnect()
+                except Exception as e:
+                    self.logger.error(f"Erro ao sincronizar dispositivos RouterIntegration ({router.host}): {e}")
             
             self.last_sync_time = time.time()
             self.logger.info(f"🔄 Sincronização de dispositivos concluída ({len(self.device_info_cache)} IPs mapeados)")
@@ -168,6 +206,14 @@ class MonitoringEngine:
             # Tenta encontrar a fonte pelo IP (host)
             source = InternetSource.query.filter_by(host=source_ip, is_active=True).first()
             source_id = source.id if source else None
+            
+            # Checa também RouterIntegration se source não foi encontrado
+            if not source:
+                router = RouterIntegration.query.filter_by(host=source_ip, is_active=True).first()
+                if not router:
+                    # Opcional: ignorar pacotes de IPs não configurados
+                    # return
+                    pass
             
             # Tenta identificar o formato
             log_entry = None
