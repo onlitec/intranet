@@ -25,11 +25,14 @@ from esservidor_api import ESSERVIDORAPI
 from models import init_db
 from routes import register_routes
 from agent_api import agent_api
+from remote_mgmt import remote_mgmt, init_socketio_events
+from flask_socketio import SocketIO
 
 
 csrf = CSRFProtect()
 login_manager = LoginManager()
 session_ext = Session()
+socketio = SocketIO(cors_allowed_origins="*", async_mode='eventlet')
 
 
 def create_app() -> Flask:
@@ -53,7 +56,7 @@ def create_app() -> Flask:
     app.config['SESSION_PERMANENT'] = config.SESSION_PERMANENT
     app.config['SESSION_USE_SIGNER'] = config.SESSION_USE_SIGNER
 
-    # Banco: permitir override (Postgres opcional) via DATABASE_URL
+    # Banco: permitir override (Postgres/Docker) via env DATABASE_URL
     db_url = os.getenv('DATABASE_URL')
     if db_url:
         app.config['SQLALCHEMY_DATABASE_URI'] = db_url
@@ -67,6 +70,7 @@ def create_app() -> Flask:
 
     csrf.init_app(app)
     session_ext.init_app(app)
+    socketio.init_app(app)
 
     # DB + crypto
     init_db(app)
@@ -85,6 +89,11 @@ def create_app() -> Flask:
     # Blueprint agent (API do Agente)
     csrf.exempt(agent_api)
     app.register_blueprint(agent_api)
+
+    # Blueprint remote management / websockets
+    csrf.exempt(remote_mgmt)
+    app.register_blueprint(remote_mgmt)
+    init_socketio_events(socketio)
 
     # Rotas principais (endpoints legados sem prefixo)
     register_routes(app)

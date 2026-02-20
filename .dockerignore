@@ -1,0 +1,14 @@
+venv
+__pycache__
+*.pyc
+.env
+.flask_session
+intranet.db
+intranet.db-shm
+intranet.db-wal
+engine.log
+logs/*.log
+.git
+.github
+.pytest_cache
+*.db

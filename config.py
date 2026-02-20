@@ -72,6 +72,7 @@ AGENT_REPORT_INTERVAL = int(os.getenv('AGENT_REPORT_INTERVAL', '300')) # 5 minut
 AGENT_MAX_FAILED_ATTEMPTS = 5
 AGENT_BLOCK_TIME = 3600 # 1 hora em segundos
 MIN_AGENT_VERSION = "0.1.0" # Versão Alpha inicial
+ADMIN_REMOTE_TOKEN = os.getenv('ADMIN_REMOTE_TOKEN', 'ADMIN-REMOTE-CTRL-2026')
 # Configurações de IA (Fase 7)
 AI_ENABLE = os.getenv('AI_ENABLE', 'true').lower() == 'true'
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', '') # Chave opcional

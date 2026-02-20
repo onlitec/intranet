@@ -356,7 +356,29 @@ class DomainCategorization(db.Model):
         return f'<DomainCategorization {self.domain} -> {self.friendly_name}>'
 
 
+class RemoteSessionLog(db.Model):
+    """Log de sessões de acesso remoto para auditoria"""
+    __tablename__ = 'remote_session_logs'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    admin_id = db.Column(db.Integer, db.ForeignKey('admin_users.id'), nullable=False)
+    device_id = db.Column(db.Integer, db.ForeignKey('known_devices.id'), nullable=False)
+    admin_ip = db.Column(db.String(45))
+    start_time = db.Column(db.DateTime, default=datetime.utcnow)
+    end_time = db.Column(db.DateTime)
+    status = db.Column(db.String(20))  # active, completed, error
+    critical_actions = db.Column(db.Text)  # JSON list of actions like 'Power Off'
+    
+    # Relacionamentos
+    admin = db.relationship('AdminUser', backref=db.backref('remote_sessions', lazy=True))
+    device = db.relationship('KnownDevice', backref=db.backref('remote_sessions', lazy=True))
+
+    def __repr__(self):
+        return f'<RemoteSessionLog {self.id}: Admin {self.admin_id} -> Device {self.device_id}>'
+
+
 def init_db(app):
+
     """Inicializa o banco de dados e cria as tabelas"""
     db.init_app(app)
     with app.app_context():

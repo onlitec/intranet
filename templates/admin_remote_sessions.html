@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block title %}Histórico de Acesso Remoto{% endblock %}
+{% block page_title %}Auditoria: Acesso Remoto{% endblock %}
+{% block page_subtitle %}Registro de sessões e orquestração entre agentes{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header flex justify-between items-center">
+        <h3 class="card-title">Sessões Remotas Realizadas</h3>
+        <div class="topbar-status">
+            <span class="status-dot"></span>
+            <span>Monitoramento Ativo</span>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-container">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>🕒 Início / Fim</th>
+                        <th>👨‍💻 Administrador</th>
+                        <th>💻 Dispositivo Alvo</th>
+                        <th>🌐 IP Origem</th>
+                        <th>🛡️ Status</th>
+                        <th>🛠️ Ações Críticas</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for session in sessions %}
+                    <tr>
+                        <td>
+                            <div class="timestamp-badge">
+                                {{ session.start_time|localdatetime|strftime('%d/%m/%Y %H:%M:%S') }}
+                                <br>
+                                <span class="text-muted text-xs">
+                                    {% if session.end_time %}
+                                    Fim: {{ session.end_time|localdatetime|strftime('%H:%M:%S') }}
+                                    {% else %}
+                                    <span class="badge badge-success">Em curso...</span>
+                                    {% endif %}
+                                </span>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="font-bold">{{ session.admin.full_name }}</div>
+                            <div class="text-muted text-xs">@{{ session.admin.username }}</div>
+                        </td>
+                        <td>
+                            <div class="flex items-center gap-2">
+                                <span>{{ session.device.get_icon() }}</span>
+                                <div>
+                                    <div class="font-bold">{{ session.device.hostname }}</div>
+                                    <code class="text-xs">{{ session.device.mac_address }}</code>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <code class="text-xs">{{ session.admin_ip }}</code>
+                        </td>
+                        <td>
+                            {% if session.status == 'completed' %}
+                            <span class="badge badge-info">Concluído</span>
+                            {% elif session.status == 'active' %}
+                            <span class="badge badge-success">Ativo</span>
+                            {% else %}
+                            <span class="badge badge-error">{{ session.status }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="text-xs">
+                                {{ session.critical_actions or '---' }}
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" class="text-center p-12">
+                            <div class="text-4xl mb-4">🛡️</div>
+                            <div class="text-lg font-bold">Nenhuma sessão remota registrada</div>
+                            <p class="text-muted">Os logs aparecerão aqui assim que os Agentes Admin iniciarem acessos.
+                            </p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

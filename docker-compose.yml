@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: intranet-db
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-intranet}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-intranet_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-intranet_db}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    container_name: intranet-app
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${FLASK_PORT:-5000}:5000"
+      - "514:514/udp"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-intranet}:${POSTGRES_PASSWORD:-intranet_pass}@db:5432/${POSTGRES_DB:-intranet_db}
+      FLASK_SECRET_KEY: ${FLASK_SECRET_KEY}
+      FLASK_ENV: ${FLASK_ENV:-production}
+      ESSERVIDOR_API_KEY: ${ESSERVIDOR_API_KEY}
+      ESSERVIDOR_IP: ${ESSERVIDOR_IP}
+    volumes:
+      - .:/app
+      - app_logs:/app/logs
+      - app_sessions:/app/.flask_session
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10mb"
+        max-file: "3"
+
+volumes:
+  postgres_data:
+  app_logs:
+  app_sessions:

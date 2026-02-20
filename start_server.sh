@@ -35,9 +35,8 @@ echo "🚀 Iniciando servidor Gunicorn..."
 cd "$BASE_DIR"
 
 nohup $VENV_DIR/bin/gunicorn \
-    --workers 4 \
-    --threads 2 \
-    --worker-class gthread \
+    --workers 1 \
+    --worker-class eventlet \
     --bind 127.0.0.1:5000 \
     --access-logfile "$LOG_DIR/access.log" \
     --error-logfile "$LOG_DIR/error.log" \

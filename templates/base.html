@@ -123,7 +123,13 @@
                     <span class="nav-icon">{{ icon('storage') }}</span>
                     <span>Armazenamento</span>
                 </a>
+                <a href="{{ url_for('admin.remote_sessions') }}"
+                    class="nav-item {% if request.endpoint == 'admin.remote_sessions' %}active{% endif %}">
+                    <span class="nav-icon">📢</span>
+                    <span>Acesso Remoto</span>
+                </a>
             </div>
+
 
             <div class="nav-section">
                 <div class="nav-section-title">Sistema</div>

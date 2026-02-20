@@ -63,7 +63,7 @@ def report_telemetry():
     if not data:
         return jsonify({'status': 'error', 'message': 'No data'}), 400
     
-    mac = data.get('mac_address', '').upper()
+    mac = data.get('mac_address', '').upper().replace('-', ':')
     if not mac:
         return jsonify({'status': 'error', 'message': 'MAC address required'}), 400
     
@@ -141,7 +141,7 @@ def report_access_logs():
     if not data or 'logs' not in data:
         return jsonify({'status': 'error', 'message': 'No logs provided'}), 400
     
-    mac = data.get('mac_address', '').upper()
+    mac = data.get('mac_address', '').upper().replace('-', ':')
     if not mac:
         return jsonify({'status': 'error', 'message': 'MAC address required'}), 400
     
@@ -190,7 +190,7 @@ def get_pending_commands():
     if auth_token != config.AGENT_TOKEN:
         return jsonify({'status': 'error', 'message': 'Unauthorized'}), 401
     
-    mac = request.args.get('mac_address', '').upper()
+    mac = request.args.get('mac_address', '').upper().replace('-', ':')
     if not mac:
         return jsonify({'status': 'error', 'message': 'MAC address required'}), 400
     
@@ -251,7 +251,7 @@ def report_inventory():
     if not data or 'inventory' not in data:
         return jsonify({'status': 'error', 'message': 'No inventory provided'}), 400
     
-    mac = data.get('mac_address', '').upper()
+    mac = data.get('mac_address', '').upper().replace('-', ':')
     if not mac:
         return jsonify({'status': 'error', 'message': 'MAC address required'}), 400
     

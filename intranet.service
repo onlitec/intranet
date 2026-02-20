@@ -10,7 +10,7 @@ WorkingDirectory=/opt/intranet
 EnvironmentFile=-/opt/intranet/.env
 Environment="PATH=/opt/intranet/venv/bin"
 Environment=PYTHONUNBUFFERED=1
-ExecStart=/opt/intranet/venv/bin/gunicorn --workers 4 --threads 2 --worker-class gthread --bind 127.0.0.1:5000 --access-logfile /opt/intranet/logs/access.log --error-logfile /opt/intranet/logs/error.log wsgi:app
+ExecStart=/opt/intranet/venv/bin/gunicorn --worker-class eventlet --workers 1 --bind 127.0.0.1:5000 --access-logfile /opt/intranet/logs/access.log --error-logfile /opt/intranet/logs/error.log wsgi:app
 Restart=always
 RestartSec=5
 

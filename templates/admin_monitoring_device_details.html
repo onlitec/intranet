@@ -4,8 +4,8 @@
 {% block page_title %}Monitoramento: Dispositivo{% endblock %}
 {% block page_subtitle %}
 <p class="topbar-subtitle">Histórico de acessos para <strong>{{ device.hostname or identifier }}</strong>{% if
-    (device.ip_address or device.temp_ip) and (device.hostname != (device.ip_address or device.temp_ip)) %} <span
-        class="text-muted">({{ device.ip_address or device.temp_ip }})</span>{% endif %}</p>
+    (device.last_ip or device.temp_ip) and (device.hostname != (device.last_ip or device.temp_ip)) %} <span
+        class="text-muted">({{ device.last_ip or device.temp_ip }})</span>{% endif %}</p>
 {% endblock %}
 
 {% block content %}
@@ -116,7 +116,7 @@
                 <div class="info-item"
                     style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--border-color);">
                     <span class="text-muted">Usuário Logado:</span>
-                    <span class="fw-600">{{ device.user_domain + '\' if device.user_domain }}{{ device.logged_user or
+                    <span class="fw-600">{{ device.user_domain + '\\' if device.user_domain }}{{ device.logged_user or
                         '---' }}</span>
                 </div>
                 {% if device.login_time %}
@@ -132,7 +132,7 @@
                 </div>
             </div>
             <div class="mt-4">
-                {% set dev_ip = device.ip_address or device.temp_ip or identifier %}
+                {% set dev_ip = device.last_ip or device.temp_ip or identifier %}
                 {% set dev_host = device.hostname if device.hostname != 'Dispositivo Desconhecido' else '' %}
                 <a href="{{ url_for('admin.monitoring_logs', ip=dev_ip, hostname=dev_host) }}"
                     class="btn btn-primary w-100">

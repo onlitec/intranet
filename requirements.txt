@@ -32,3 +32,6 @@ tzlocal==5.3.1
 urllib3==2.6.3
 Werkzeug==3.0.1
 WTForms==3.2.1
+psycopg2-binary==2.9.9
+supervisor==4.2.5
+Flask-SocketIO==5.5.1

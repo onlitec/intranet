@@ -2540,3 +2540,16 @@ def file_server_test(id):
         current_app.logger.error(f"Erro ao testar servidor {id}: {e}")
         return jsonify({'success': False, 'message': f'Erro: {str(e)}'}), 500
 
+
+# ==================== CONTROLE REMOTO ====================
+
+@admin_bp.route('/remote/sessions')
+@admin_required
+def remote_sessions():
+    """Listagem de sessões de acesso remoto (Auditoria)"""
+    from models import RemoteSessionLog
+    admin = get_current_admin()
+    sessions = RemoteSessionLog.query.order_by(RemoteSessionLog.start_time.desc()).all()
+    return render_template('admin_remote_sessions.html', admin=admin, sessions=sessions)
+
+
